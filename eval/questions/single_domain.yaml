@@ -1,0 +1,40 @@
+# STARTER SET — placeholders, not the frozen eval-v1 bank.
+#
+# Per plan §7, the real question bank (target: >=15 here) must be authored
+# and frozen BEFORE the first real experiment run, against verified live
+# data (table/column names confirmed via scripts/setup_snowflake.py, and
+# the FDIC/CFPB/HMDA specifics the user is providing — see PLAN.md
+# Implementation status). These 3 are illustrative only, to exercise the
+# pipeline (agents/*, eval/run_eval.py) end-to-end before the real bank
+# exists. Do not treat scores against these as meaningful research results.
+
+questions:
+  - id: sd-001
+    text: "What was the 30-year fixed mortgage rate trend over the past four quarters?"
+    category: single_domain
+    expected_domains:
+      minimum_required: [economic_indicators]
+      optional_enrichment: []
+    difficulty: easy
+    ground_truth_sql_path: eval/ground_truth/sd-001.sql
+
+  - id: sd-002
+    text: "What is the total population of Evansville, IN?"
+    category: single_domain
+    expected_domains:
+      minimum_required: [demographics, geography]
+      optional_enrichment: []
+    difficulty: easy
+    ground_truth_sql_path: eval/ground_truth/sd-002.sql
+
+  - id: sd-003
+    text: "What total deposits did [a specific public bank holding company] report in its most recent 10-Q?"
+    category: single_domain
+    expected_domains:
+      minimum_required: [competitor_intelligence]
+      optional_enrichment: []
+    difficulty: medium
+    ground_truth_sql_path: eval/ground_truth/sd-003.sql
+    note: >
+      Placeholder — needs a real, verified company name/CIK once the
+      frozen_scope.target_companies list in config/domains.yaml is filled in.

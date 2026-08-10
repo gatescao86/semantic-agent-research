@@ -1,0 +1,35 @@
+# STARTER SET — placeholders, not the frozen eval-v1 bank. See
+# single_domain.yaml header for the full caveat (target: >=15 real
+# questions, authored against verified data, before the real run).
+
+questions:
+  - id: cd-001
+    text: >
+      Which metro areas show both rising unemployment and declining reported
+      deposits among public bank holding companies headquartered there?
+    category: cross_domain
+    expected_domains:
+      minimum_required: [economic_indicators, competitor_intelligence, geography]
+      optional_enrichment: [demographics]
+    difficulty: hard
+
+  - id: cd-002
+    text: >
+      For metro areas with population growth above the national median, how
+      have mortgage rates and reported bank lending trended over the same
+      period?
+    category: cross_domain
+    expected_domains:
+      minimum_required: [demographics, economic_indicators, geography]
+      optional_enrichment: [competitor_intelligence]
+    difficulty: hard
+
+  - id: cd-003
+    text: >
+      Do public bank holding companies headquartered in higher-income metro
+      areas report higher total deposits than those in lower-income areas?
+    category: cross_domain
+    expected_domains:
+      minimum_required: [demographics, competitor_intelligence, geography]
+      optional_enrichment: []
+    difficulty: medium

@@ -1,0 +1,39 @@
+# STARTER SET — placeholders, not the frozen eval-v1 bank. See
+# single_domain.yaml header for the full caveat (target: >=10 real
+# questions, authored against verified data, before the real run).
+
+questions:
+  - id: ex-001
+    text: >
+      Give me a competitive landscape analysis for Evansville, IN: economic
+      conditions, demographic trends, and how the public bank holding
+      companies with a presence there compare on reported deposits and
+      loan growth.
+    category: executive
+    expected_domains:
+      minimum_required:
+        [geography, economic_indicators, demographics, competitor_intelligence]
+      optional_enrichment: []
+    difficulty: hard
+
+  - id: ex-002
+    text: >
+      Summarize the current banking-sector and mortgage-market conditions
+      nationally, and identify which 2-3 metro areas look most attractive
+      for a regional bank considering expansion.
+    category: executive
+    expected_domains:
+      minimum_required: [economic_indicators, demographics, geography]
+      optional_enrichment: [competitor_intelligence]
+    difficulty: hard
+
+  - id: ex-003
+    text: >
+      Based on reported financials, which public bank holding companies show
+      the strongest deposit growth trajectory over the last four quarters,
+      and what does that suggest about their competitive position?
+    category: executive
+    expected_domains:
+      minimum_required: [competitor_intelligence]
+      optional_enrichment: [economic_indicators, geography]
+    difficulty: medium

@@ -1,0 +1,47 @@
+# NOTE: table/column names are best-effort from Snowflake's public docs
+# (data-docs.snowflake.com) and were not verified against a live account
+# during planning (no credentials available). Confirm exact names via
+# `scripts/setup_snowflake.py` and `DESCRIBE TABLE` during M0, and correct
+# this file before it is used to answer real questions. Every other domain
+# file has the same caveat.
+
+domain: geography
+description: >
+  Geographic entities (states, counties, cities/CBSAs, zip codes) and the
+  relationships between them, standardized across Census Bureau, Data
+  Commons, and Statistics Canada sources. Used to resolve place names (e.g.
+  "Evansville, IN") into standardized geography IDs and to join other
+  domains by location. Rarely the sole answer to a question by itself —
+  usually a join target for economic_indicators, demographics, or
+  competitor_intelligence.
+
+entities:
+  - name: geography
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.CYBERSYN.GEOGRAPHY_INDEX
+    primary_key: geo_id
+    description: >
+      One row per geographic entity (state, county, city/CBSA, zip code,
+      census block group). level distinguishes the granularity.
+
+relationships:
+  - from: geography.parent_geo_id
+    to: geography.geo_id
+    type: many_to_one
+
+dimensions:
+  - name: geo_name
+    entity: geography
+    column: geo_name
+  - name: geo_level
+    entity: geography
+    column: level
+    type: categorical
+    # expected values include something like: state, county, cbsa, zip, county_subdivision
+
+metrics: []
+
+# Nothing declared here: cross-domain foreign keys are declared on the
+# referencing (foreign-key) side only — see economic_indicators.yaml,
+# demographics.yaml, competitor_intelligence.yaml, each of which declares a
+# cross_domain_keys entry pointing at geography.geography.geo_id.
+cross_domain_keys: []

@@ -1,0 +1,55 @@
+# Single source of truth mapping each domain to its semantic model file and
+# router classification label/description. Both the routed agent's semantic
+# model set and the router's prompt read from this file, so the two never
+# drift out of sync with each other.
+#
+# Domains are scoped to what SNOWFLAKE_PUBLIC_DATA_FREE (Cybersyn schema)
+# actually contains. See semantic_models/domains/*.yaml for full detail.
+# NOTE: exact table/column names below are best-effort from public Snowflake
+# documentation and must be verified against the live database during M0
+# (scripts/setup_snowflake.py) before being trusted as ground truth.
+
+domains:
+  - name: geography
+    semantic_model: semantic_models/domains/geography.yaml
+    router_label: geography
+    description: >
+      Geographic entities (states, counties, cities/CBSAs, zip codes) and
+      the relationships between them. Used to resolve place names (e.g.
+      "Evansville") into standardized geography IDs and to join other
+      domains by location. Rarely the sole answer to a question by itself.
+
+  - name: economic_indicators
+    semantic_model: semantic_models/domains/economic_indicators.yaml
+    router_label: economic_indicators
+    description: >
+      Financial and economic timeseries by geography: GDP, unemployment,
+      CPI, retail sales, consumer credit, interest rates, mortgage rates,
+      and banking-sector indicators. Use for questions about macroeconomic
+      or market conditions in a region.
+
+  - name: demographics
+    semantic_model: semantic_models/domains/demographics.yaml
+    router_label: demographics
+    description: >
+      Census ACS-derived population, income, housing, and demographic
+      statistics by geography. Use for questions about who lives in a
+      market — population size, income levels, housing characteristics.
+
+  - name: competitor_intelligence
+    semantic_model: semantic_models/domains/competitor_intelligence.yaml
+    router_label: competitor_intelligence
+    description: >
+      Public company identity and SEC EDGAR filing data (10-K/10-Q/8-K),
+      including parsed XBRL financial line items. Scoped in this study to
+      public bank holding companies, whose filings report deposits, loans,
+      and revenue. Use for questions about specific companies/competitors,
+      their reported financials, or competitive positioning.
+
+# Companies and geographies frozen for the eval question bank (plan §3.3),
+# so questions are answerable and ground-truth-verifiable rather than
+# open-ended over the full ~100k company universe. Fill in after M0 confirms
+# real coverage in the live data.
+frozen_scope:
+  target_geographies: []   # e.g. ["Evansville, IN", "..."]
+  target_companies: []     # e.g. public bank holding company names/CIKs

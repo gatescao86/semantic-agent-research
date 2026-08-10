@@ -1,0 +1,48 @@
+# See geography.yaml header note: table/column names must be verified
+# against the live database during M0 before being trusted.
+
+domain: demographics
+description: >
+  Census ACS-derived population, income, housing, and demographic
+  statistics by geography. Use for questions about who lives in a market —
+  population size, median income, housing characteristics, age/education
+  distribution.
+
+entities:
+  - name: acs_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.CYBERSYN.CENSUS_ACS_ATTRIBUTES
+    primary_key: variable
+    description: One row per ACS variable (e.g. total population, median household income).
+  - name: acs_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.CYBERSYN.CENSUS_ACS_TIMESERIES
+    primary_key: [variable, geo_id, date]
+    description: One row per ACS variable, geography, and reporting period.
+
+relationships:
+  - from: acs_timeseries.variable
+    to: acs_attributes.variable
+    type: many_to_one
+
+dimensions:
+  - name: acs_variable_name
+    entity: acs_attributes
+    column: variable_name
+  - name: acs_report_date
+    entity: acs_timeseries
+    column: date
+    type: date
+
+metrics:
+  - name: acs_value
+    entity: acs_timeseries
+    expression: value
+    description: >
+      Raw ACS value for a given (variable, geo_id, date). Which real-world
+      quantity this represents depends on `variable` — join to
+      acs_attributes to filter (e.g. "Total Population", "Median Household
+      Income").
+
+cross_domain_keys:
+  - entity: acs_timeseries
+    join_key: geo_id
+    references: geography.geography.geo_id

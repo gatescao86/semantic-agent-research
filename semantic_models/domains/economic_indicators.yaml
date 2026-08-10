@@ -1,0 +1,55 @@
+# See geography.yaml header note: table/column names must be verified
+# against the live database during M0 before being trusted.
+
+domain: economic_indicators
+description: >
+  Financial and economic timeseries by geography: GDP, unemployment, CPI,
+  retail sales, consumer credit, interest rates, mortgage rates, and
+  banking-sector indicators. Use for questions about macroeconomic or
+  market conditions in a region, or trends over time in a specific
+  indicator.
+
+entities:
+  - name: indicator_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.CYBERSYN.FINANCIAL_ECONOMIC_INDICATOR_ATTRIBUTES
+    primary_key: variable
+    description: >
+      One row per indicator series (e.g. unemployment rate, 30-year fixed
+      mortgage rate, CPI), describing its unit, frequency, and source.
+  - name: indicator_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.CYBERSYN.FINANCIAL_ECONOMIC_INDICATOR_TIMESERIES
+    primary_key: [variable, geo_id, date]
+    description: One row per indicator, geography, and date.
+
+relationships:
+  - from: indicator_timeseries.variable
+    to: indicator_attributes.variable
+    type: many_to_one
+
+dimensions:
+  - name: indicator_name
+    entity: indicator_attributes
+    column: variable_name
+  - name: indicator_category
+    entity: indicator_attributes
+    column: category
+    # e.g. "employment", "housing", "prices", "banking"
+  - name: observation_date
+    entity: indicator_timeseries
+    column: date
+    type: date
+
+metrics:
+  - name: indicator_value
+    entity: indicator_timeseries
+    expression: value
+    description: >
+      The raw value of the indicator for a given (variable, geo_id, date).
+      Which real-world quantity this represents depends entirely on
+      `variable` — join to indicator_attributes to filter by indicator name
+      (e.g. "30-Year Fixed Rate Mortgage Average", "Unemployment Rate").
+
+cross_domain_keys:
+  - entity: indicator_timeseries
+    join_key: geo_id
+    references: geography.geography.geo_id
