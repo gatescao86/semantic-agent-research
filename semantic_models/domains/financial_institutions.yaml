@@ -1,0 +1,158 @@
+domain: financial_institutions
+description: >
+  Regulatory identity, corporate hierarchy, and institution-level financials
+  for FDIC/FFIEC-regulated banks (id_rssd is the FFIEC/Federal Reserve
+  identifier). Also includes CFPB consumer complaints against financial
+  companies. This is the bridge domain: deposits.branch and
+  mortgage_lending.mortgage_application both reference entities here to
+  identify which institution/company a branch or loan belongs to.
+
+entities:
+  - name: institution
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FINANCIAL_INSTITUTION_ENTITIES
+    primary_key: id_rssd
+    description: >
+      One row per financial institution. fdic_cert bridges to
+      deposits.branch.fdic_institution_certificate_number;
+      legal_entity_identifier bridges to
+      mortgage_lending.mortgage_application.legal_entity_identifier.
+      naics_code identifies the institution type (e.g. commercial banking).
+  - name: institution_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FINANCIAL_INSTITUTION_ATTRIBUTES
+    primary_key: variable
+    description: Catalog of institution-level financial variables (call-report-style). Look up `variable` here before querying timeseries.
+  - name: institution_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FINANCIAL_INSTITUTION_TIMESERIES
+    primary_key: [id_rssd, variable, date]
+    description: >
+      Institution-level financial metrics over time (e.g. total assets).
+      Resolve `variable` on institution_attributes first; do not scan this
+      table to discover series names.
+  - name: institution_hierarchy
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FINANCIAL_INSTITUTION_HIERARCHY
+    primary_key: [id_rssd_parent, id_rssd_offspring]
+    description: Parent/subsidiary (holding company) relationships between institutions.
+  - name: institution_event
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FINANCIAL_INSTITUTION_EVENTS
+    primary_key: [id_rssd_successor, id_rssd_predecessor, transaction_date]
+    description: Mergers, splits, charter changes, and failures between institutions.
+  - name: complaint
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FINANCIAL_CFPB_COMPLAINT
+    primary_key: complaint_id
+    description: >
+      Consumer complaints against financial companies. `company` is free
+      text (not a foreign key into `institution`) — matching it to a
+      specific institution requires fuzzy/manual matching, not a clean join.
+
+relationships:
+  - from: institution_timeseries.id_rssd
+    to: institution.id_rssd
+    type: many_to_one
+  - from: institution_timeseries.variable
+    to: institution_attributes.variable
+    type: many_to_one
+  - from: institution_hierarchy.id_rssd_parent
+    to: institution.id_rssd
+    type: many_to_one
+  - from: institution_hierarchy.id_rssd_offspring
+    to: institution.id_rssd
+    type: many_to_one
+  - from: institution_event.id_rssd_successor
+    to: institution.id_rssd
+    type: many_to_one
+  - from: institution_event.id_rssd_predecessor
+    to: institution.id_rssd
+    type: many_to_one
+
+dimensions:
+  - name: institution_name
+    entity: institution
+    column: name
+  - name: institution_naics_code
+    entity: institution
+    column: naics_code
+  - name: fdic_cert
+    entity: institution
+    column: fdic_cert
+  - name: legal_entity_identifier
+    entity: institution
+    column: legal_entity_identifier
+  - name: institution_variable_name
+    entity: institution_attributes
+    column: variable_name
+  - name: institution_metric_frequency
+    entity: institution_attributes
+    column: frequency
+  - name: event_transaction_date
+    entity: institution_event
+    column: transaction_date
+    type: date
+  - name: complaint_product
+    entity: complaint
+    column: product
+  - name: complaint_company
+    entity: complaint
+    column: company
+  - name: complaint_date_received
+    entity: complaint
+    column: date_received
+    type: date
+  - name: institution_id_rssd
+    entity: institution
+    column: id_rssd
+  - name: institution_city
+    entity: institution
+    column: city
+  - name: institution_id_state
+    entity: institution
+    column: id_state
+  - name: institution_id_county
+    entity: institution
+    column: id_county
+  - name: institution_id_zip
+    entity: institution
+    column: id_zip
+  - name: institution_timeseries_id_rssd
+    entity: institution_timeseries
+    column: id_rssd
+  - name: institution_timeseries_date
+    entity: institution_timeseries
+    column: date
+    type: date
+  - name: institution_hierarchy_name_parent
+    entity: institution_hierarchy
+    column: name_parent
+  - name: institution_hierarchy_name_offspring
+    entity: institution_hierarchy
+    column: name_offspring
+  - name: complaint_id_zip
+    entity: complaint
+    column: id_zip
+  - name: complaint_id_state
+    entity: complaint
+    column: id_state
+  - name: complaint_state
+    entity: complaint
+    column: state
+
+metrics:
+  - name: institution_metric_value
+    entity: institution_timeseries
+    expression: value
+    description: >
+      Raw institution-level financial value for (id_rssd, variable, date).
+      Join to institution_attributes to identify what this represents.
+
+cross_domain_keys:
+  - entity: institution
+    join_key: id_state
+    references: geography.geography.geo_id
+  - entity: institution
+    join_key: id_county
+    references: geography.geography.geo_id
+  - entity: complaint
+    join_key: id_state
+    references: geography.geography.geo_id
+  - entity: complaint
+    join_key: id_zip
+    references: geography.geography.geo_id

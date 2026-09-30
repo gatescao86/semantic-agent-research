@@ -1,9 +1,9 @@
-"""Experiment A: the unified semantic agent.
+"""Condition 2: the unified semantic agent.
 
 Thin wrapper around the shared loop (agents/loop.py) — injects the full,
 generated unified semantic model and the unified-condition prompt snippet.
-No agent-specific logic lives here; anything that looks like "unified agent
-behavior" belongs in loop.py so it's shared with the routed agent.
+Same tools and loop as schema_only_agent.py; the only experimental
+difference is the glossary (YAML vs physical catalog).
 """
 
 from __future__ import annotations
@@ -88,6 +88,7 @@ def answer_question(
         total_input_tokens=turn.total_input_tokens,
         total_output_tokens=turn.total_output_tokens,
         total_cache_read_tokens=turn.total_cache_read_tokens,
+        total_cache_creation_tokens=turn.total_cache_creation_tokens,
         wall_clock_ms=turn.wall_clock_ms,
         hit_iteration_cap=turn.hit_iteration_cap,
         timestamp=datetime.now(timezone.utc).isoformat(),

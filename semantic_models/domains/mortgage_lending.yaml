@@ -1,0 +1,204 @@
+domain: mortgage_lending
+description: >
+  Real mortgage origination/application data (HMDA, loan-level) plus house
+  price, mortgage-performance, and appraisal indexes (FHFA). HMDA rows are
+  loan-level but re-identifying fields are stripped in the public extract —
+  there is no single true unique key per row.
+
+entities:
+  - name: mortgage_application
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.HOME_MORTGAGE_DISCLOSURE_ATTRIBUTES
+    primary_key: [year, legal_entity_identifier, censustract_geo_id]
+    description: >
+      One row per HMDA loan application/origination record (year, lender,
+      loan terms, applicant demographics, property/tract characteristics).
+      The primary_key listed here is NOT a true unique row key — HMDA public
+      data has many loans per (year, lender, tract); treat each row as an
+      individual loan record for aggregation (COUNT, SUM, AVG), not as
+      addressable by a single ID.
+  - name: house_price_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FHFA_HOUSE_PRICE_ATTRIBUTES
+    primary_key: variable
+    description: Catalog of FHFA house price index series (by property classification, index type).
+  - name: house_price_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FHFA_HOUSE_PRICE_TIMESERIES
+    primary_key: [geo_id, variable, date]
+    description: >
+      One row per FHFA house-price series, geography, and date. Resolve
+      `variable` on house_price_attributes first; do not scan this table to
+      discover series names.
+  - name: mortgage_performance_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FHFA_MORTGAGE_PERFORMANCE_ATTRIBUTES
+    primary_key: variable
+    description: Catalog of FHFA loan-level mortgage performance series (originations, delinquency).
+  - name: mortgage_performance_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FHFA_MORTGAGE_PERFORMANCE_TIMESERIES
+    primary_key: [geo_id, variable, date]
+    description: >
+      One row per FHFA mortgage-performance series, geography, and date.
+      Resolve `variable` on mortgage_performance_attributes first; do not
+      scan this table to discover series names.
+  - name: appraisal_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FHFA_UNIFORM_APPRAISAL_ATTRIBUTES
+    primary_key: variable
+    description: Catalog of FHFA uniform appraisal series (home values/features from appraisal data).
+  - name: appraisal_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FHFA_UNIFORM_APPRAISAL_TIMESERIES
+    primary_key: [geo_id, variable, date]
+    description: >
+      One row per FHFA appraisal series, geography, and date. Resolve
+      `variable` on appraisal_attributes first; do not scan this table to
+      discover series names.
+
+relationships:
+  - from: house_price_timeseries.variable
+    to: house_price_attributes.variable
+    type: many_to_one
+  - from: mortgage_performance_timeseries.variable
+    to: mortgage_performance_attributes.variable
+    type: many_to_one
+  - from: appraisal_timeseries.variable
+    to: appraisal_attributes.variable
+    type: many_to_one
+
+dimensions:
+  - name: loan_purpose
+    entity: mortgage_application
+    column: loan_purpose
+  - name: action_taken
+    entity: mortgage_application
+    column: action_taken
+  - name: loan_type
+    entity: mortgage_application
+    column: loan_type
+  - name: occupancy_type
+    entity: mortgage_application
+    column: occupancy_type
+  - name: applicant_race
+    entity: mortgage_application
+    column: applicant_race
+  - name: applicant_sex
+    entity: mortgage_application
+    column: applicant_sex
+  - name: application_year
+    entity: mortgage_application
+    column: year
+  - name: lender_name
+    entity: mortgage_application
+    column: financial_institution_name
+  - name: house_price_variable_name
+    entity: house_price_attributes
+    column: variable_name
+  - name: house_price_frequency
+    entity: house_price_attributes
+    column: frequency
+  - name: house_price_seasonally_adjusted
+    entity: house_price_attributes
+    column: seasonally_adjusted
+  - name: mortgage_performance_variable_name
+    entity: mortgage_performance_attributes
+    column: variable_name
+  - name: appraisal_variable_name
+    entity: appraisal_attributes
+    column: variable_name
+  - name: mortgage_application_legal_entity_identifier
+    entity: mortgage_application
+    column: legal_entity_identifier
+  - name: mortgage_application_censustract_geo_id
+    entity: mortgage_application
+    column: censustract_geo_id
+  - name: mortgage_application_county_geo_id
+    entity: mortgage_application
+    column: county_geo_id
+  - name: mortgage_application_msa_geo_id
+    entity: mortgage_application
+    column: msa_geo_id
+  - name: mortgage_application_state_geo_id
+    entity: mortgage_application
+    column: state_geo_id
+  - name: mortgage_application_purchaser_type
+    entity: mortgage_application
+    column: purchaser_type
+  - name: mortgage_application_applicant_ethnicity
+    entity: mortgage_application
+    column: applicant_ethnicity
+  - name: house_price_timeseries_geo_id
+    entity: house_price_timeseries
+    column: geo_id
+  - name: house_price_timeseries_date
+    entity: house_price_timeseries
+    column: date
+    type: date
+  - name: mortgage_performance_attributes_frequency
+    entity: mortgage_performance_attributes
+    column: frequency
+  - name: mortgage_performance_timeseries_geo_id
+    entity: mortgage_performance_timeseries
+    column: geo_id
+  - name: mortgage_performance_timeseries_date
+    entity: mortgage_performance_timeseries
+    column: date
+    type: date
+  - name: appraisal_attributes_frequency
+    entity: appraisal_attributes
+    column: frequency
+  - name: appraisal_timeseries_geo_id
+    entity: appraisal_timeseries
+    column: geo_id
+  - name: appraisal_timeseries_date
+    entity: appraisal_timeseries
+    column: date
+    type: date
+
+metrics:
+  - name: loan_amount
+    entity: mortgage_application
+    expression: loan_amount
+  - name: interest_rate
+    entity: mortgage_application
+    expression: interest_rate
+  - name: applicant_income
+    entity: mortgage_application
+    expression: applicant_income
+  - name: property_value
+    entity: mortgage_application
+    expression: property_value
+  - name: loan_application_count
+    entity: mortgage_application
+    expression: COUNT(*)
+    description: Number of loan application/origination records matching filters — use for volume/count questions.
+  - name: house_price_index_value
+    entity: house_price_timeseries
+    expression: value
+  - name: mortgage_performance_value
+    entity: mortgage_performance_timeseries
+    expression: value
+  - name: appraisal_value
+    entity: appraisal_timeseries
+    expression: value
+
+cross_domain_keys:
+  - entity: mortgage_application
+    join_key: censustract_geo_id
+    references: geography.geography.geo_id
+  - entity: mortgage_application
+    join_key: county_geo_id
+    references: geography.geography.geo_id
+  - entity: mortgage_application
+    join_key: state_geo_id
+    references: geography.geography.geo_id
+  - entity: mortgage_application
+    join_key: msa_geo_id
+    references: geography.geography.geo_id
+  - entity: mortgage_application
+    join_key: legal_entity_identifier
+    references: financial_institutions.institution.legal_entity_identifier
+  - entity: house_price_timeseries
+    join_key: geo_id
+    references: geography.geography.geo_id
+  - entity: mortgage_performance_timeseries
+    join_key: geo_id
+    references: geography.geography.geo_id
+  - entity: appraisal_timeseries
+    join_key: geo_id
+    references: geography.geography.geo_id

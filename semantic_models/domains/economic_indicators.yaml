@@ -1,55 +1,294 @@
-# See geography.yaml header note: table/column names must be verified
-# against the live database during M0 before being trusted.
-
 domain: economic_indicators
 description: >
-  Financial and economic timeseries by geography: GDP, unemployment, CPI,
-  retail sales, consumer credit, interest rates, mortgage rates, and
-  banking-sector indicators. Use for questions about macroeconomic or
-  market conditions in a region, or trends over time in a specific
-  indicator.
+  Macroeconomic and regional-business-activity indicators: general economic
+  indicators, Federal Reserve series, BLS employment and price series, and
+  Economic Census business-establishment data. This domain has several
+  independent attributes/timeseries pairs. A series is a row in an
+  attributes catalog — filter variable_name (and release_name where the
+  table has it) on each *_ATTRIBUTES entity before concluding it is missing.
+  FEDERAL_RESERVE_* is not the only Fed-origin catalog;
+  FINANCIAL_ECONOMIC_INDICATORS_* holds many FRED-style series. All
+  *_TIMESERIES tables share (geo_id, variable, date, value) joined to a
+  matching *_ATTRIBUTES table.
 
 entities:
   - name: indicator_attributes
-    table: SNOWFLAKE_PUBLIC_DATA_FREE.CYBERSYN.FINANCIAL_ECONOMIC_INDICATOR_ATTRIBUTES
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FINANCIAL_ECONOMIC_INDICATORS_ATTRIBUTES
     primary_key: variable
     description: >
-      One row per indicator series (e.g. unemployment rate, 30-year fixed
-      mortgage rate, CPI), describing its unit, frequency, and source.
+      Catalog of FRED-style general indicator series. Identify a series by
+      filtering variable_name / release_name / frequency / seasonally_adjusted
+      — do not expect this file to name the series. Distinct from fed_attributes.
   - name: indicator_timeseries
-    table: SNOWFLAKE_PUBLIC_DATA_FREE.CYBERSYN.FINANCIAL_ECONOMIC_INDICATOR_TIMESERIES
-    primary_key: [variable, geo_id, date]
-    description: One row per indicator, geography, and date.
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FINANCIAL_ECONOMIC_INDICATORS_TIMESERIES
+    primary_key: [geo_id, variable, date]
+    description: >
+      One row per indicator series, geography, and observation date. Resolve
+      `variable` on indicator_attributes first; do not scan this table to
+      discover series names.
+  - name: indicator_attributes_vintage
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FINANCIAL_ECONOMIC_INDICATORS_ATTRIBUTES_VINTAGE
+    primary_key: variable
+    description: Same as indicator_attributes, for series that track release-vintage history.
+  - name: indicator_timeseries_vintage
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FINANCIAL_ECONOMIC_INDICATORS_TIMESERIES_VINTAGE
+    primary_key: [geo_id, variable, date, release_date]
+    description: >
+      Point-in-time vintages of indicator values — use when a question needs
+      "what was known as of a given release date" rather than the latest
+      revised value (use indicator_timeseries for the latter). Resolve
+      `variable` on indicator_attributes_vintage first.
+  - name: fed_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FEDERAL_RESERVE_ATTRIBUTES
+    primary_key: variable
+    description: >
+      Catalog of series stored on FEDERAL_RESERVE_* in this extract
+      (industrial production, sector assets/liabilities, commercial paper).
+      Not every Fed release lives here — search indicator_attributes as well.
+  - name: fed_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FEDERAL_RESERVE_TIMESERIES
+    primary_key: [geo_id, variable, date]
+    description: >
+      One row per Federal Reserve series, geography, and observation date.
+      Resolve `variable` on fed_attributes first; do not scan this table to
+      discover series names.
+  - name: bls_employment_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.BUREAU_OF_LABOR_STATISTICS_EMPLOYMENT_ATTRIBUTES
+    primary_key: variable
+    description: Catalog of BLS employment/labor-turnover/wage series (LAUS, JOLTS, SAE).
+  - name: bls_employment_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.BUREAU_OF_LABOR_STATISTICS_EMPLOYMENT_TIMESERIES
+    primary_key: [geo_id, variable, date]
+    description: >
+      One row per BLS employment series, geography, and observation date.
+      Resolve `variable` on bls_employment_attributes first; do not scan
+      this table to discover series names.
+  - name: bls_price_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.BUREAU_OF_LABOR_STATISTICS_PRICE_ATTRIBUTES
+    primary_key: variable
+    description: Catalog of BLS CPI / average-price series.
+  - name: bls_price_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.BUREAU_OF_LABOR_STATISTICS_PRICE_TIMESERIES
+    primary_key: [geo_id, variable, date]
+    description: >
+      One row per BLS price series, geography, and observation date. Resolve
+      `variable` on bls_price_attributes first; do not scan this table to
+      discover series names.
+  - name: economic_census_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.US_ECONOMIC_CENSUS_ATTRIBUTES
+    primary_key: variable
+    description: >
+      Catalog of Economic Census business-activity series (establishment
+      counts, employment, payroll, operating costs) by NAICS industry.
+  - name: economic_census_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.US_ECONOMIC_CENSUS_TIMESERIES
+    primary_key: [geo_id, variable, date]
+    description: >
+      One row per Economic Census series, geography, and census year.
+      Resolve `variable` on economic_census_attributes first; do not scan
+      this table to discover series names.
 
 relationships:
   - from: indicator_timeseries.variable
     to: indicator_attributes.variable
+    type: many_to_one
+  - from: indicator_timeseries_vintage.variable
+    to: indicator_attributes_vintage.variable
+    type: many_to_one
+  - from: fed_timeseries.variable
+    to: fed_attributes.variable
+    type: many_to_one
+  - from: bls_employment_timeseries.variable
+    to: bls_employment_attributes.variable
+    type: many_to_one
+  - from: bls_price_timeseries.variable
+    to: bls_price_attributes.variable
+    type: many_to_one
+  - from: economic_census_timeseries.variable
+    to: economic_census_attributes.variable
     type: many_to_one
 
 dimensions:
   - name: indicator_name
     entity: indicator_attributes
     column: variable_name
-  - name: indicator_category
+  - name: indicator_release_name
     entity: indicator_attributes
-    column: category
-    # e.g. "employment", "housing", "prices", "banking"
+    column: release_name
+  - name: indicator_frequency
+    entity: indicator_attributes
+    column: frequency
+  - name: indicator_seasonally_adjusted
+    entity: indicator_attributes
+    column: seasonally_adjusted
+  - name: vintage_release_name
+    entity: indicator_attributes_vintage
+    column: release_name
+  - name: vintage_frequency
+    entity: indicator_attributes_vintage
+    column: frequency
+  - name: vintage_seasonally_adjusted
+    entity: indicator_attributes_vintage
+    column: seasonally_adjusted
+  - name: fed_variable_name
+    entity: fed_attributes
+    column: variable_name
+  - name: fed_frequency
+    entity: fed_attributes
+    column: frequency
+  - name: fed_seasonally_adjusted
+    entity: fed_attributes
+    column: seasonally_adjusted
+  - name: bls_employment_variable_name
+    entity: bls_employment_attributes
+    column: variable_name
+  - name: bls_employment_frequency
+    entity: bls_employment_attributes
+    column: frequency
+  - name: bls_employment_seasonally_adjusted
+    entity: bls_employment_attributes
+    column: seasonally_adjusted
+  - name: bls_price_variable_name
+    entity: bls_price_attributes
+    column: variable_name
+  - name: bls_price_frequency
+    entity: bls_price_attributes
+    column: frequency
+  - name: bls_price_seasonally_adjusted
+    entity: bls_price_attributes
+    column: seasonally_adjusted
+  - name: economic_census_naics_code
+    entity: economic_census_attributes
+    column: naics_code
   - name: observation_date
     entity: indicator_timeseries
     column: date
     type: date
+  - name: indicator_attributes_measure
+    entity: indicator_attributes
+    column: measure
+  - name: indicator_attributes_measurement_type
+    entity: indicator_attributes
+    column: measurement_type
+  - name: indicator_timeseries_geo_id
+    entity: indicator_timeseries
+    column: geo_id
+  - name: indicator_attributes_vintage_variable_name
+    entity: indicator_attributes_vintage
+    column: variable_name
+  - name: indicator_attributes_vintage_measure
+    entity: indicator_attributes_vintage
+    column: measure
+  - name: indicator_attributes_vintage_measurement_type
+    entity: indicator_attributes_vintage
+    column: measurement_type
+  - name: indicator_timeseries_vintage_geo_id
+    entity: indicator_timeseries_vintage
+    column: geo_id
+  - name: indicator_timeseries_vintage_variable_name
+    entity: indicator_timeseries_vintage
+    column: variable_name
+  - name: indicator_timeseries_vintage_date
+    entity: indicator_timeseries_vintage
+    column: date
+    type: date
+  - name: indicator_timeseries_vintage_release_date
+    entity: indicator_timeseries_vintage
+    column: release_date
+    type: date
+  - name: fed_attributes_measure
+    entity: fed_attributes
+    column: measure
+  - name: fed_timeseries_geo_id
+    entity: fed_timeseries
+    column: geo_id
+  - name: fed_timeseries_date
+    entity: fed_timeseries
+    column: date
+    type: date
+  - name: bls_employment_attributes_report
+    entity: bls_employment_attributes
+    column: report
+  - name: bls_employment_attributes_measure
+    entity: bls_employment_attributes
+    column: measure
+  - name: bls_employment_timeseries_geo_id
+    entity: bls_employment_timeseries
+    column: geo_id
+  - name: bls_employment_timeseries_date
+    entity: bls_employment_timeseries
+    column: date
+    type: date
+  - name: bls_price_attributes_report
+    entity: bls_price_attributes
+    column: report
+  - name: bls_price_attributes_product
+    entity: bls_price_attributes
+    column: product
+  - name: bls_price_timeseries_geo_id
+    entity: bls_price_timeseries
+    column: geo_id
+  - name: bls_price_timeseries_date
+    entity: bls_price_timeseries
+    column: date
+    type: date
+  - name: economic_census_attributes_variable_name
+    entity: economic_census_attributes
+    column: variable_name
+  - name: economic_census_attributes_measure
+    entity: economic_census_attributes
+    column: measure
+  - name: economic_census_attributes_frequency
+    entity: economic_census_attributes
+    column: frequency
+  - name: economic_census_timeseries_geo_id
+    entity: economic_census_timeseries
+    column: geo_id
+  - name: economic_census_timeseries_date
+    entity: economic_census_timeseries
+    column: date
 
 metrics:
   - name: indicator_value
     entity: indicator_timeseries
     expression: value
     description: >
-      The raw value of the indicator for a given (variable, geo_id, date).
-      Which real-world quantity this represents depends entirely on
-      `variable` — join to indicator_attributes to filter by indicator name
-      (e.g. "30-Year Fixed Rate Mortgage Average", "Unemployment Rate").
+      Raw value for (geo_id, variable, date). Join to indicator_attributes
+      via variable to identify which indicator this is (e.g. "30-Year Fixed
+      Rate Mortgage Average", "Unemployment Claims").
+  - name: indicator_value_vintage
+    entity: indicator_timeseries_vintage
+    expression: value
+  - name: fed_value
+    entity: fed_timeseries
+    expression: value
+  - name: bls_employment_value
+    entity: bls_employment_timeseries
+    expression: value
+  - name: bls_price_value
+    entity: bls_price_timeseries
+    expression: value
+    description: CPI/price-index value; join to bls_price_attributes to identify the specific product/basket.
+  - name: economic_census_value
+    entity: economic_census_timeseries
+    expression: value
 
 cross_domain_keys:
   - entity: indicator_timeseries
+    join_key: geo_id
+    references: geography.geography.geo_id
+  - entity: indicator_timeseries_vintage
+    join_key: geo_id
+    references: geography.geography.geo_id
+  - entity: fed_timeseries
+    join_key: geo_id
+    references: geography.geography.geo_id
+  - entity: bls_employment_timeseries
+    join_key: geo_id
+    references: geography.geography.geo_id
+  - entity: bls_price_timeseries
+    join_key: geo_id
+    references: geography.geography.geo_id
+  - entity: economic_census_timeseries
     join_key: geo_id
     references: geography.geography.geo_id

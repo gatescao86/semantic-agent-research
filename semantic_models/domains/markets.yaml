@@ -1,0 +1,42 @@
+domain: markets
+description: >
+  Daily equity price/volume data for US securities traded on Nasdaq. The
+  smallest domain in this study (one table) — deliberately kept separate
+  rather than folded into economic_indicators, since it's security-level,
+  not geography/macro-level, data. No geo_id or company-identity column is
+  present in this table, so it does not natively join to any other domain
+  in this dataset without an external ticker-to-company mapping (not
+  included here).
+
+entities:
+  - name: stock_price
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.STOCK_PRICE_TIMESERIES
+    primary_key: [ticker, variable, date]
+    description: Daily open/close/high/low price and volume, by ticker and session type.
+
+relationships: []
+
+dimensions:
+  - name: stock_ticker
+    entity: stock_price
+    column: ticker
+  - name: stock_variable_name
+    entity: stock_price
+    column: variable_name
+  - name: stock_price_variable
+    entity: stock_price
+    column: variable
+  - name: stock_price_date
+    entity: stock_price
+    column: date
+    type: date
+
+metrics:
+  - name: stock_value
+    entity: stock_price
+    expression: value
+    description: >
+      Raw value for (ticker, variable, date) — what it represents (open,
+      close, high, low, volume) depends on variable_name.
+
+cross_domain_keys: []

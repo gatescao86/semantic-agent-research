@@ -1,0 +1,22 @@
+id: fa-011
+category: factual
+difficulty: easy
+text: >
+  What is United Community Bank's (Greenville, SC) latest call-report total deposits?
+
+data_vintage: 'FFIEC call report through 2026-03-31 in this extract'
+
+expected_domains:
+  minimum_required: [financial_institutions]
+  optional_enrichment: []
+
+ground_truth_sql_path: ground_truth/answer.sql
+
+criteria:
+  - id: "001"
+    match_criteria: >
+      PASS if the answer states total deposits for United Community Bank of Greenville, SC from institution-level call-report data. FAIL if the figure is missing, is another United Community Bank, or is FDIC Summary of Deposits branch deposits.
+    tolerance: 0.01
+    value: 24415141000
+    unit: USD
+    ground_truth_sql: ground_truth/answer.sql

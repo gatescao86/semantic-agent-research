@@ -1,0 +1,12 @@
+-- Old National Bank in-market branch deposits, Evansville CBSA.
+-- DEPSUMBR. Values in USD thousands. Extract vintage 2025-06-30.
+
+SELECT ROUND(SUM(t.value), 0) AS onb_deposits
+FROM SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FDIC_BRANCH_LOCATIONS_INDEX b
+JOIN SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FDIC_SUMMARY_OF_DEPOSITS_TIMESERIES t
+  ON t.fdic_branch_id = b.fdic_branch_id
+ AND t.fdic_institution_id = b.fdic_institution_id
+WHERE b.geo_id_cbsa = 'geoId/C21780'
+  AND t.variable = 'DEPSUMBR'
+  AND t.date = '2025-06-30'
+  AND b.institution_name = 'Old National Bank'

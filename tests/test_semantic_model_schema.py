@@ -41,24 +41,37 @@ def test_unified_model_contains_promoted_cross_domain_relationships():
     model = load_semantic_model(UNIFIED_PATH)
     assert model.cross_domain_keys == []
     rel_pairs = {(r.from_, r.to) for r in model.relationships}
-    assert ("company.hq_geo_id", "geography.geo_id") in rel_pairs
+    # deposits <-> financial_institutions bridge (FDIC cert)
+    assert ("branch.fdic_institution_certificate_number", "institution.fdic_cert") in rel_pairs
+    # deposits <-> financial_institutions bridge (RSSD; FDIC/FFIEC docs)
+    assert ("branch.rssdid", "institution.id_rssd") in rel_pairs
+    # mortgage_lending <-> financial_institutions bridge (LEI)
+    assert ("mortgage_application.legal_entity_identifier", "institution.legal_entity_identifier") in rel_pairs
+    assert ("mortgage_application.censustract_geo_id", "geography.geo_id") in rel_pairs
     assert ("indicator_timeseries.geo_id", "geography.geo_id") in rel_pairs
     assert ("acs_timeseries.geo_id", "geography.geo_id") in rel_pairs
 
 
 def test_merge_domain_models_promotes_relationship_when_both_domains_present():
-    merged, unavailable = merge_domain_models(["competitor_intelligence", "geography"])
-    assert unavailable == []
+    merged, unavailable = merge_domain_models(["deposits", "financial_institutions"])
+    # geography isn't in this subset, so deposits'/financial_institutions' geo_id_* keys
+    # are still unavailable — only the fdic_cert bridge between the two selected
+    # domains should be promoted, and it should NOT appear in unavailable.
+    assert not any("fdic_institution_certificate_number" in u for u in unavailable)
+    assert not any("rssdid" in u for u in unavailable)
     rel_pairs = {(r["from"], r["to"]) for r in merged["relationships"]}
-    assert ("company.hq_geo_id", "geography.geo_id") in rel_pairs
+    assert ("branch.fdic_institution_certificate_number", "institution.fdic_cert") in rel_pairs
+    assert ("branch.rssdid", "institution.id_rssd") in rel_pairs
 
 
 def test_merge_domain_models_drops_relationship_when_target_domain_missing():
-    merged, unavailable = merge_domain_models(["competitor_intelligence"])
-    assert len(unavailable) == 1
-    assert "geography" in unavailable[0]
+    merged, unavailable = merge_domain_models(["deposits"])
+    # deposits declares cross_domain_keys to both geography and financial_institutions;
+    # only financial_institutions is missing from this subset.
+    assert any("financial_institutions" in u for u in unavailable)
     rel_froms = {r["from"] for r in merged["relationships"]}
-    assert "company.hq_geo_id" not in rel_froms
+    assert "branch.fdic_institution_certificate_number" not in rel_froms
+    assert "branch.rssdid" not in rel_froms
 
 
 def test_generate_unified_model_rejects_entity_name_collision(tmp_path, monkeypatch):
@@ -80,3 +93,22 @@ def test_generate_unified_model_rejects_entity_name_collision(tmp_path, monkeypa
     monkeypatch.setattr(gen, "DOMAINS_DIR", domains_dir)
     with pytest.raises(SystemExit):
         gen.build_unified_model(gen.load_domain_models())
+
+
+def test_declared_columns_includes_pk_dim_and_simple_metrics():
+    from scripts.audit_semantic_models import declared_columns
+
+    cols = declared_columns()["HOME_MORTGAGE_DISCLOSURE_ATTRIBUTES"]["columns"]
+    assert "YEAR" in cols  # PK
+    assert "LOAN_PURPOSE" in cols  # dimension
+    assert "LOAN_AMOUNT" in cols  # simple metric
+    assert "COUNTY_GEO_ID" in cols  # cross-domain join key
+
+
+def test_cross_domain_join_targets_are_declared_on_target_entities():
+    """deposits.fdic_cert and HMDA.lei must exist as columns on institution, not
+    only in another domain's references: string — agents cannot guess them.
+    """
+    from scripts.audit_semantic_models import undeclared_join_targets
+
+    assert undeclared_join_targets() == []

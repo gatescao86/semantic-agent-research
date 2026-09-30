@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 """Generate semantic_models/unified/unified_model.yaml from the domain models.
 
-The unified model for Experiment A is never hand-authored — it is always
-regenerated from semantic_models/domains/*.yaml. This controls for "semantic
-model authoring effort" as a hidden variable in the unified-vs-routed
-comparison: if the unified model were separately hand-crafted, it could end
-up better-written than the sum of the domain parts for reasons unrelated to
-architecture.
+The unified model is never hand-authored — it is always regenerated from
+semantic_models/domains/*.yaml. This controls for "semantic model
+authoring effort" as a hidden variable in the unified-vs-decomposed
+comparison: if the unified model were separately hand-crafted, it could
+end up better-written than the sum of the domain parts for reasons
+unrelated to architecture.
 
 Run:
     python scripts/generate_unified_model.py [--check]

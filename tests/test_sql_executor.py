@@ -1,6 +1,6 @@
 import pytest
 
-from agents.sql_executor import UnsafeSqlError, check_sql_is_read_only
+from agents.sql_executor import UnsafeSqlError, check_sql_is_read_only, strip_sql_comments
 
 
 @pytest.mark.parametrize(
@@ -35,3 +35,31 @@ def test_allows_single_select(sql):
 def test_rejects_unsafe_sql(sql, expected_message_fragment):
     with pytest.raises(UnsafeSqlError, match=expected_message_fragment):
         check_sql_is_read_only(sql)
+
+
+@pytest.mark.parametrize(
+    "sql",
+    [
+        # A `;` inside a comment is not a statement separator. Found authoring
+        # eval/ground_truth/ex-001-deposits.sql, whose header comment contains
+        # "geoId/C21780; Gibson County ...".
+        "-- geoId/C21780; Gibson County is not in this CBSA\nSELECT 1",
+        # A query may legitimately open with a comment.
+        "-- ground truth: deposit market\nWITH x AS (SELECT 1) SELECT * FROM x",
+        # A disallowed keyword inside a comment is not a disallowed statement.
+        "/* do not CREATE anything */ SELECT 1",
+        "SELECT 1 -- DROP TABLE foo",
+    ],
+)
+def test_comments_do_not_trigger_false_rejections(sql):
+    check_sql_is_read_only(sql)  # should not raise
+
+
+def test_strip_sql_comments_preserves_string_literals():
+    sql = "SELECT '-- not a comment' AS a, 'a''b' AS b -- real comment\nFROM t"
+    assert strip_sql_comments(sql) == "SELECT '-- not a comment' AS a, 'a''b' AS b \nFROM t"
+
+
+def test_statement_separator_outside_comment_still_rejected():
+    with pytest.raises(UnsafeSqlError, match="Multiple statements"):
+        check_sql_is_read_only("-- a comment\nSELECT 1; SELECT 2")

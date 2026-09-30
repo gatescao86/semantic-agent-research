@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 """M0 connectivity + schema-discovery check for SNOWFLAKE_PUBLIC_DATA_FREE.
 
-This does NOT mutate anything — it only runs SHOW/DESCRIBE/SELECT COUNT(*)
-against the free public data database to confirm read access, and prints the
-actual table names/columns found so the semantic model YAML files
-(semantic_models/domains/*.yaml) can be corrected against reality. Those
-files were authored from Snowflake's public documentation, not a live
-account, and are marked as needing verification — this script is that
-verification step.
+This does NOT mutate anything — it only runs SELECT against
+INFORMATION_SCHEMA to confirm read access, and cross-checks the live table
+list against what semantic_models/domains/*.yaml actually reference (parsed
+from their `table:` fields, not a separately hardcoded list — a hardcoded
+list drifts out of sync with the YAML files, which is exactly what happened
+here once before).
 
 Run: python scripts/setup_snowflake.py
 """
@@ -22,23 +21,23 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from agents.sql_executor import SqlExecutor  # noqa: E402
+from semantic_models.schema import DOMAINS_DIR, load_semantic_model  # noqa: E402
 
-EXPECTED_TABLES = [
-    "GEOGRAPHY_INDEX",
-    "GEOGRAPHY_RELATIONSHIPS",
-    "FINANCIAL_ECONOMIC_INDICATOR_ATTRIBUTES",
-    "FINANCIAL_ECONOMIC_INDICATOR_TIMESERIES",
-    "CENSUS_ACS_ATTRIBUTES",
-    "CENSUS_ACS_TIMESERIES",
-    "COMPANY_INDEX",
-    "SEC_REPORT_INDEX",
-    "SEC_METRICS_TIMESERIES",
-]
+
+def expected_tables() -> dict[str, str]:
+    """Map real table name (upper) -> owning domain, parsed from the domain YAMLs."""
+    tables: dict[str, str] = {}
+    for path in sorted(DOMAINS_DIR.glob("*.yaml")):
+        model = load_semantic_model(path)
+        for entity in model.entities:
+            table_name = entity.table.split(".")[-1].upper()
+            tables[table_name] = model.domain
+    return tables
 
 
 def main() -> None:
     database = os.environ.get("SNOWFLAKE_PUBLIC_DATA_DATABASE", "SNOWFLAKE_PUBLIC_DATA_FREE")
-    schema = os.environ.get("SNOWFLAKE_PUBLIC_DATA_SCHEMA", "CYBERSYN")
+    schema = os.environ.get("SNOWFLAKE_PUBLIC_DATA_SCHEMA", "PUBLIC_DATA_FREE")
 
     executor = SqlExecutor()
 
@@ -56,32 +55,24 @@ def main() -> None:
         )
         raise SystemExit(1)
 
-    found_tables = {row[0] for row in result.rows}
-    print(f"Found {len(found_tables)} tables in {database}.{schema}:\n")
-    for row in result.rows:
-        print(f"  {row[0]:<50} ~{row[1]} rows")
+    found_tables = {row[0].upper() for row in result.rows}
+    print(f"Found {len(found_tables)} tables in {database}.{schema}.\n")
 
-    print("\n--- Cross-check against semantic model assumptions ---")
-    missing = [t for t in EXPECTED_TABLES if t not in found_tables]
+    expected = expected_tables()
+    print(f"--- Cross-check against semantic_models/domains/*.yaml ({len(expected)} tables referenced) ---")
+    missing = {t: domain for t, domain in expected.items() if t not in found_tables}
     if missing:
         print(
-            "\nThe following tables were assumed in semantic_models/domains/*.yaml "
-            "but were NOT found under this schema — update those YAML files with "
-            "the real table names before trusting them:"
+            "\nThe following tables are referenced in semantic_models/domains/*.yaml "
+            "but were NOT found in this schema — the domain model is out of date "
+            "or this account doesn't have access to them:"
         )
-        for t in missing:
-            print(f"  MISSING: {t}")
-    else:
-        print("\nAll tables referenced in semantic_models/domains/*.yaml were found. "
-              "Column names still need spot-checking (see below).")
+        for t, domain in sorted(missing.items()):
+            print(f"  MISSING: {t}  (domain: {domain})")
+        executor.close()
+        raise SystemExit(1)
 
-    print(
-        "\nNext: run DESCRIBE TABLE on each table above (or query "
-        f"{database}.INFORMATION_SCHEMA.COLUMNS) and diff actual column names "
-        "against semantic_models/domains/*.yaml — primary/foreign key column "
-        "names in particular were guessed from documentation, not verified."
-    )
-
+    print("\nAll tables referenced in semantic_models/domains/*.yaml were found. Connectivity OK.")
     executor.close()
 
 

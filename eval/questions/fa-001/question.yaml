@@ -1,0 +1,28 @@
+id: fa-001
+category: factual
+difficulty: easy
+text: >
+  What is the latest H.8 seasonally adjusted weekly bank credit for all
+  commercial banks?
+
+data_vintage: "H.8 Assets and Liabilities of Commercial Banks in the United States; weekly SA bank credit through 2026-05-20 in this extract"
+
+expected_domains:
+  minimum_required: [economic_indicators]
+  optional_enrichment: []
+
+ground_truth_sql_path: ground_truth/bank_credit.sql
+
+criteria:
+  - id: "001"
+    match_criteria: >
+      PASS if the answer states H.8 seasonally adjusted weekly bank credit
+      for all commercial banks as of the extract vintage (week ending
+      2026-05-20) as a dollar level. FAIL if the figure is missing, is a
+      different H.8 panel, is not seasonally adjusted, substitutes a
+      monthly or quarterly observation, or uses a later week than
+      2026-05-20.
+    value: 19566390500000
+    unit: USD
+    tolerance: 0.01
+    ground_truth_sql: ground_truth/bank_credit.sql

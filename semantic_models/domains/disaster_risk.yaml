@@ -1,0 +1,206 @@
+# Verified against live schema — see geography.yaml header note.
+
+domain: disaster_risk
+description: >
+  Federally-declared disasters, FEMA disaster-response funding/mission
+  assignments, and National Flood Insurance Program claims/policies — a
+  geography's disaster and flood-risk exposure, relevant context for
+  mortgage/lending risk and regional economic conditions.
+
+entities:
+  - name: disaster_declaration
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FEMA_DISASTER_DECLARATION_INDEX
+    primary_key: disaster_id
+    description: One row per federally-declared disaster, with assistance-program funding totals.
+  - name: disaster_area
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FEMA_DISASTER_DECLARATION_AREAS_INDEX
+    primary_key: disaster_declaration_record_id
+    description: The specific state/county areas covered by a disaster declaration.
+  - name: mission_assignment
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FEMA_MISSION_ASSIGNMENT_INDEX
+    primary_key: fema_record_id
+    description: FEMA work orders directing funding/tasks to other agencies for a disaster.
+  - name: fema_region
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FEMA_REGION_INDEX
+    primary_key: fema_region_id
+    description: FEMA's regional office structure and the states each region covers.
+  - name: flood_claim
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FEMA_NATIONAL_FLOOD_INSURANCE_PROGRAM_CLAIM_INDEX
+    primary_key: national_flood_insurance_program_claim_id
+    description: Individual National Flood Insurance Program claims (damage/payment amounts, flood zone, property).
+  - name: flood_policy
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FEMA_NATIONAL_FLOOD_INSURANCE_PROGRAM_POLICY_INDEX
+    primary_key: national_flood_insurance_program_policy_id
+    description: Individual National Flood Insurance Program policies (coverage, premium, flood zone).
+
+relationships:
+  - from: disaster_area.disaster_id
+    to: disaster_declaration.disaster_id
+    type: many_to_one
+  - from: mission_assignment.disaster_id
+    to: disaster_declaration.disaster_id
+    type: many_to_one
+  - from: disaster_area.fema_region_id
+    to: fema_region.fema_region_id
+    type: many_to_one
+  - from: mission_assignment.fema_region_id
+    to: fema_region.fema_region_id
+    type: many_to_one
+  - from: flood_policy.fema_region_id
+    to: fema_region.fema_region_id
+    type: many_to_one
+
+dimensions:
+  - name: disaster_type
+    entity: disaster_declaration
+    column: disaster_type
+  - name: disaster_declaration_date
+    entity: disaster_declaration
+    column: disaster_declaration_date
+    type: date
+  - name: fema_designated_area
+    entity: disaster_area
+    column: fema_designated_area
+  - name: flood_event
+    entity: flood_claim
+    column: flood_event
+  - name: flood_claim_date_of_loss
+    entity: flood_claim
+    column: date_of_loss
+    type: date
+  - name: flood_policy_flood_zone
+    entity: flood_policy
+    column: current_flood_zone
+  - name: disaster_declaration_disaster_declaration_type
+    entity: disaster_declaration
+    column: disaster_declaration_type
+  - name: disaster_declaration_disaster_begin_date
+    entity: disaster_declaration
+    column: disaster_begin_date
+    type: date
+  - name: disaster_declaration_disaster_end_date
+    entity: disaster_declaration
+    column: disaster_end_date
+    type: date
+  - name: disaster_area_state_geo_id
+    entity: disaster_area
+    column: state_geo_id
+  - name: disaster_area_county_geo_id
+    entity: disaster_area
+    column: county_geo_id
+  - name: mission_assignment_state_geo_id
+    entity: mission_assignment
+    column: state_geo_id
+  - name: fema_region_city
+    entity: fema_region
+    column: city
+  - name: fema_region_state_geo_id
+    entity: fema_region
+    column: state_geo_id
+  - name: flood_claim_occupancy_type
+    entity: flood_claim
+    column: occupancy_type
+  - name: flood_claim_current_flood_zone
+    entity: flood_claim
+    column: current_flood_zone
+  - name: flood_claim_state_geo_id
+    entity: flood_claim
+    column: state_geo_id
+  - name: flood_claim_county_geo_id
+    entity: flood_claim
+    column: county_geo_id
+  - name: flood_claim_zip_geo_id
+    entity: flood_claim
+    column: zip_geo_id
+  - name: flood_claim_census_tract_id
+    entity: flood_claim
+    column: census_tract_id
+  - name: flood_claim_city
+    entity: flood_claim
+    column: city
+  - name: flood_policy_occupancy_type
+    entity: flood_policy
+    column: occupancy_type
+  - name: flood_policy_policy_effective_date
+    entity: flood_policy
+    column: policy_effective_date
+    type: date
+  - name: flood_policy_state_geo_id
+    entity: flood_policy
+    column: state_geo_id
+  - name: flood_policy_county_geo_id
+    entity: flood_policy
+    column: county_geo_id
+  - name: flood_policy_zip_geo_id
+    entity: flood_policy
+    column: zip_geo_id
+  - name: flood_policy_census_tract_id
+    entity: flood_policy
+    column: census_tract_id
+  - name: flood_policy_city
+    entity: flood_policy
+    column: city
+
+metrics:
+  - name: disaster_assistance_amount
+    entity: disaster_declaration
+    expression: approved_individual_and_households_program_amount
+  - name: mission_obligation_amount
+    entity: mission_assignment
+    expression: obligation_amount
+  - name: flood_claim_building_damage_amount
+    entity: flood_claim
+    expression: building_damage_amount
+  - name: flood_claim_amount_paid
+    entity: flood_claim
+    expression: amount_paid_on_building_claim
+  - name: flood_claim_contents_damage_amount
+    entity: flood_claim
+    expression: contents_damage_amount
+  - name: flood_claim_count
+    entity: flood_claim
+    expression: COUNT(*)
+  - name: flood_policy_total_coverage
+    entity: flood_policy
+    expression: total_building_insurance_coverage
+  - name: flood_policy_count
+    entity: flood_policy
+    expression: policy_count
+
+cross_domain_keys:
+  - entity: disaster_area
+    join_key: state_geo_id
+    references: geography.geography.geo_id
+  - entity: disaster_area
+    join_key: county_geo_id
+    references: geography.geography.geo_id
+  - entity: mission_assignment
+    join_key: state_geo_id
+    references: geography.geography.geo_id
+  - entity: fema_region
+    join_key: state_geo_id
+    references: geography.geography.geo_id
+  - entity: flood_claim
+    join_key: state_geo_id
+    references: geography.geography.geo_id
+  - entity: flood_claim
+    join_key: county_geo_id
+    references: geography.geography.geo_id
+  - entity: flood_claim
+    join_key: zip_geo_id
+    references: geography.geography.geo_id
+  - entity: flood_claim
+    join_key: census_tract_id
+    references: geography.geography.geo_id
+  - entity: flood_policy
+    join_key: state_geo_id
+    references: geography.geography.geo_id
+  - entity: flood_policy
+    join_key: county_geo_id
+    references: geography.geography.geo_id
+  - entity: flood_policy
+    join_key: zip_geo_id
+    references: geography.geography.geo_id
+  - entity: flood_policy
+    join_key: census_tract_id
+    references: geography.geography.geo_id

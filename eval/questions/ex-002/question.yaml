@@ -1,0 +1,112 @@
+id: ex-002
+category: executive
+difficulty: hard
+text: >
+  Given Renasant Bank's current footprint, where should we expand to and
+  what are the risks?
+
+data_vintage: "FDIC Summary of Deposits 2025-06-30; ACS 5-year 2024; HMDA 2025; BLS LAUS annual 2025; NFIP claims"
+
+expected_domains:
+  minimum_required:
+    [geography, deposits, financial_institutions, economic_indicators, demographics, mortgage_lending, disaster_risk]
+  optional_enrichment: []
+
+criteria:
+  - id: "001"
+    match_criteria: >
+      PASS if the answer identifies Renasant's current branch-deposit
+      footprint as Mississippi, Georgia, Alabama, Florida, Tennessee, and
+      Louisiana. FAIL if any of those six states is missing, or if the
+      answer includes a state in which Renasant has no branches.
+  - id: "011"
+    match_criteria: >
+      PASS if the answer reports Renasant's total branch deposits across
+      its footprint as a dollar stock. FAIL if that figure is inaccurate
+      or omitted.
+    value: 21199259
+    unit: USD_thousands
+    tolerance: 0.02
+    ground_truth_sql: ground_truth/footprint.sql
+  - id: "019"
+    match_criteria: >
+      PASS if the answer reports Renasant's branch count as the number of
+      locations with SOD branch deposits at the data vintage. FAIL if that
+      figure is inaccurate or omitted, or if it counts location-file rows
+      that have no branch-deposit observation (loan-production offices,
+      unreported drive-throughs).
+    value: 253
+    unit: count
+    tolerance_abs: 2
+    ground_truth_sql: ground_truth/footprint.sql
+  - id: "002"
+    match_criteria: >
+      PASS if the answer distinguishes a market where Renasant has a large
+      deposit book but a small share (Atlanta) from a core market where it
+      holds a large share of a smaller market (Tupelo or the Mississippi
+      franchise). FAIL if it treats Renasant's largest deposit CBSA as its
+      core franchise, or never separates share from volume.
+  - id: "012"
+    match_criteria: >
+      PASS if the answer reports Renasant's branch deposits in the Tupelo,
+      MS market as a dollar stock. FAIL if that figure is inaccurate or
+      omitted.
+    value: 2145463
+    unit: USD_thousands
+    tolerance: 0.02
+    ground_truth_sql: ground_truth/cbsa_share.sql
+  - id: "003"
+    match_criteria: >
+      PASS if the answer names one or more expansion or infill candidates
+      that are in or adjacent to Mississippi, Georgia, Alabama, Florida, Tennessee, and
+      Louisiana, and gives each a reason from data (share, competitive intensity, deposit or lending
+      growth, or migration). FAIL if candidates are a national list
+      unrelated to the footprint, or if a market Renasant already dominates
+      is presented as a new market.
+  - id: "004"
+    match_criteria: >
+      PASS if the answer characterizes competitive intensity in those
+      candidate markets (who is entrenched). FAIL if it names geographies
+      with no competitive set.
+  - id: "005"
+    match_criteria: >
+      PASS if the answer reports economic conditions in the footprint or
+      candidate markets with a state or national comparison. FAIL if it
+      gives local figures with no benchmark.
+  - id: "006"
+    match_criteria: >
+      PASS if the answer reports demographic trends or migration in the
+      footprint or candidate markets with a benchmark or a prior-period
+      comparison. FAIL if it gives only current-period local numbers.
+  - id: "007"
+    match_criteria: >
+      PASS if the answer reports local home-purchase or origination
+      activity in the footprint or candidate markets, as a signal distinct
+      from Renasant's institution-wide call-report loan growth. FAIL if
+      lending is only bank-wide balance-sheet growth or is omitted.
+  - id: "008"
+    match_criteria: >
+      PASS if the answer identifies deposit-concentration risk in the
+      Mississippi / Tupelo-type core franchise. FAIL if concentration is
+      not addressed.
+  - id: "018"
+    match_criteria: >
+      PASS if the answer reports Mississippi's share of Renasant's total
+      branch deposits. FAIL if that share is inaccurate or omitted.
+    value: 40.2
+    unit: percent
+    tolerance_abs: 1.5
+    ground_truth_sql: ground_truth/footprint.sql
+  - id: "009"
+    match_criteria: >
+      PASS if the answer identifies disaster or flood exposure on the Gulf
+      or coastal parts of the footprint as a risk. FAIL if physical risk
+      is omitted, or is presented as a generic national risk with no tie
+      to this footprint.
+  - id: "010"
+    match_criteria: >
+      PASS if the answer synthesizes current footprint, candidate markets,
+      and risks into an expansion implication (in-fill versus new market,
+      where share is contestable, what not to treat as a greenfield). FAIL
+      if those findings are left as disconnected tables, or if equity-price
+      moves are treated as evidence of where to expand.

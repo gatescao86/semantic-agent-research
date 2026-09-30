@@ -1,16 +1,8 @@
-"""Single shared, read-only Snowflake execution wrapper.
+"""
+Single shared, read-only Snowflake execution wrapper.
 
-Used identically by unified_agent.py and routed_agent.py (via agents/loop.py),
-and by eval/run_eval.py for ground-truth comparison queries. This is
-deliberate: Experiment A and B must run the exact same execution code path,
-against the same warehouse/database/role, so nothing about SQL execution
-itself can differ between conditions.
-
-Safety model: the primary control is a read-only Snowflake role (configure
-this at the account level — this code cannot create or enforce grants). The
-checks below are defense in depth, not a substitute for that: they reject
-anything that isn't a single SELECT/WITH statement before it reaches
-Snowflake.
+Used identically by all three conditions (via agents/loop.py), and by
+eval/run_eval.py for ground-truth comparison queries.
 """
 
 from __future__ import annotations
@@ -22,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import snowflake.connector
+from cryptography.hazmat.primitives import serialization
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -36,6 +29,48 @@ _LEADING_KEYWORD = re.compile(r"^\s*(SELECT|WITH)\b", re.IGNORECASE)
 
 class UnsafeSqlError(ValueError):
     """Raised when a query fails the read-only pre-execution check."""
+
+
+def strip_sql_comments(sql: str) -> str:
+    """Remove `--` line comments and `/* */` block comments, preserving string literals.
+
+    The read-only checks below are all textual, so comment content would
+    otherwise be treated as SQL: a `;` or a word like CREATE inside a comment
+    triggers a spurious rejection, and a query that opens with a comment fails
+    the leading-SELECT/WITH check outright. That matters most for
+    eval/ground_truth/*.sql, which are commented by convention.
+    """
+    out: list[str] = []
+    i, n = 0, len(sql)
+    while i < n:
+        ch = sql[i]
+        if ch == "'":  # string literal — copy verbatim, honouring '' escapes
+            out.append(ch)
+            i += 1
+            while i < n:
+                out.append(sql[i])
+                if sql[i] == "'":
+                    if i + 1 < n and sql[i + 1] == "'":
+                        out.append(sql[i + 1])
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                i += 1
+            continue
+        if ch == "-" and i + 1 < n and sql[i + 1] == "-":
+            while i < n and sql[i] != "\n":
+                i += 1
+            continue
+        if ch == "/" and i + 1 < n and sql[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (sql[i] == "*" and sql[i + 1] == "/"):
+                i += 1
+            i += 2
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 @dataclass
@@ -65,7 +100,7 @@ class QueryResult:
 
 def check_sql_is_read_only(sql: str) -> None:
     """Raise UnsafeSqlError if `sql` is not a single read-only SELECT/WITH statement."""
-    stripped = sql.strip()
+    stripped = strip_sql_comments(sql).strip()
     if not stripped:
         raise UnsafeSqlError("Empty SQL statement.")
 
@@ -98,11 +133,11 @@ class SqlExecutor:
             self._conn = snowflake.connector.connect(
                 account=_require_env("SNOWFLAKE_ACCOUNT"),
                 user=_require_env("SNOWFLAKE_USER"),
-                password=_require_env("SNOWFLAKE_PASSWORD"),
+                private_key=_load_private_key(),
                 role=_require_env("SNOWFLAKE_ROLE"),
                 warehouse=_require_env("SNOWFLAKE_WAREHOUSE"),
                 database=os.environ.get("SNOWFLAKE_PUBLIC_DATA_DATABASE", "SNOWFLAKE_PUBLIC_DATA_FREE"),
-                schema=os.environ.get("SNOWFLAKE_PUBLIC_DATA_SCHEMA", "CYBERSYN"),
+                schema=os.environ.get("SNOWFLAKE_PUBLIC_DATA_SCHEMA", "PUBLIC_DATA_FREE"),
                 login_timeout=30,
                 network_timeout=self.query_timeout_seconds,
             )
@@ -151,3 +186,25 @@ def _require_env(name: str) -> str:
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}. See .env.example.")
     return value
+
+
+def _load_private_key() -> bytes:
+    """Load the RSA private key for key-pair auth (used instead of a password —
+    this account enforces MFA, which plain password auth from a script can't
+    satisfy). SNOWFLAKE_PRIVATE_KEY_PASSPHRASE may be empty/unset for an
+    unencrypted key.
+    """
+    key_path = _require_env("SNOWFLAKE_PRIVATE_KEY_PATH")
+    passphrase = os.environ.get("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE") or None
+
+    with open(os.path.expanduser(key_path), "rb") as f:
+        private_key = serialization.load_pem_private_key(
+            f.read(),
+            password=passphrase.encode() if passphrase else None,
+        )
+
+    return private_key.private_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    )

@@ -1,0 +1,22 @@
+id: fa-008
+category: factual
+difficulty: easy
+text: >
+  How much in FDIC-insured branch deposits does Renasant Bank hold in Mississippi?
+
+data_vintage: 'FDIC Summary of Deposits; latest date in this extract is 2025-06-30'
+
+expected_domains:
+  minimum_required: [geography, deposits, financial_institutions]
+  optional_enrichment: []
+
+ground_truth_sql_path: ground_truth/answer.sql
+
+criteria:
+  - id: "001"
+    match_criteria: >
+      PASS if the answer states Renasant Bank's total FDIC-insured branch deposits in Mississippi. FAIL if the figure is missing, is company-wide rather than Mississippi, or is a market share without a dollar total.
+    tolerance: 0.01
+    value: 8531582
+    unit: USD_thousands
+    ground_truth_sql: ground_truth/answer.sql

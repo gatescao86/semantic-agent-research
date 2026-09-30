@@ -1,0 +1,22 @@
+id: fa-007
+category: factual
+difficulty: easy
+text: >
+  What is Renasant Bank's deposit market share in the Tupelo, MS micro area?
+
+data_vintage: 'FDIC Summary of Deposits; latest date in this extract is 2025-06-30'
+
+expected_domains:
+  minimum_required: [geography, deposits, financial_institutions]
+  optional_enrichment: []
+
+ground_truth_sql_path: ground_truth/answer.sql
+
+criteria:
+  - id: "001"
+    match_criteria: >
+      PASS if the answer states Renasant Bank's deposit share of the Tupelo, MS micro area. FAIL if the figure is missing, uses the wrong metro, or reports Renasant deposits as a dollar stock without a share.
+    tolerance_abs: 0.5
+    value: 34.4107
+    unit: percent
+    ground_truth_sql: ground_truth/answer.sql

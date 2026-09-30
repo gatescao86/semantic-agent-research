@@ -1,34 +1,116 @@
-# See geography.yaml header note: table/column names must be verified
-# against the live database during M0 before being trusted.
-
 domain: demographics
 description: >
-  Census ACS-derived population, income, housing, and demographic
-  statistics by geography. Use for questions about who lives in a market —
-  population size, median income, housing characteristics, age/education
-  distribution.
+  Who lives where, and how that's changing: Census ACS population/housing/
+  income/social data, and IRS migration flows (by characteristic, and
+  origin-destination county/state flows).
 
 entities:
   - name: acs_attributes
-    table: SNOWFLAKE_PUBLIC_DATA_FREE.CYBERSYN.CENSUS_ACS_ATTRIBUTES
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.AMERICAN_COMMUNITY_SURVEY_ATTRIBUTES
     primary_key: variable
-    description: One row per ACS variable (e.g. total population, median household income).
+    description: >
+      Catalog of ACS variables (population, income, housing, social/economic).
+      Look up a series here by variable_name and measurement_period (1YR or
+      5YR — do not mix them). race and series_level_* break a variable into
+      ACS table hierarchy / race category; they are null when the series is
+      not a race breakdown.
   - name: acs_timeseries
-    table: SNOWFLAKE_PUBLIC_DATA_FREE.CYBERSYN.CENSUS_ACS_TIMESERIES
-    primary_key: [variable, geo_id, date]
-    description: One row per ACS variable, geography, and reporting period.
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.AMERICAN_COMMUNITY_SURVEY_TIMESERIES
+    primary_key: [geo_id, variable, date]
+    description: >
+      One row per ACS variable, geography, and reporting period. Resolve
+      `variable` on acs_attributes first; do not scan this table to discover
+      series names.
+  - name: migration_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.IRS_MIGRATION_BY_CHARACTERISTIC_ATTRIBUTES
+    primary_key: variable
+    description: Catalog of IRS migration series broken out by income bracket / age group.
+  - name: migration_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.IRS_MIGRATION_BY_CHARACTERISTIC_TIMESERIES
+    primary_key: [geo_id, variable, date]
+    description: >
+      One row per IRS-by-characteristic migration series, geography, and
+      year. Resolve `variable` on migration_attributes first; do not scan
+      this table to discover series names.
+  - name: migration_flow
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.IRS_ORIGIN_DESTINATION_MIGRATION_TIMESERIES
+    primary_key: [from_geo_id, to_geo_id, variable_name, date]
+    description: >
+      Population/household/income flow FROM one geography TO another, based
+      on IRS tax-return address changes. Two geo_id columns — this is the
+      one entity in the study whose cross-domain join target is a pair, not
+      a single column. suppressed flags IRS disclosure-limited cells.
 
 relationships:
   - from: acs_timeseries.variable
     to: acs_attributes.variable
+    type: many_to_one
+  - from: migration_timeseries.variable
+    to: migration_attributes.variable
     type: many_to_one
 
 dimensions:
   - name: acs_variable_name
     entity: acs_attributes
     column: variable_name
-  - name: acs_report_date
+  - name: acs_race
+    entity: acs_attributes
+    column: race
+  - name: acs_measure
+    entity: acs_attributes
+    column: measure
+  - name: acs_frequency
+    entity: acs_attributes
+    column: frequency
+  - name: acs_measurement_type
+    entity: acs_attributes
+    column: measurement_type
+  - name: acs_measurement_period
+    entity: acs_attributes
+    column: measurement_period
+  - name: acs_geo_id
     entity: acs_timeseries
+    column: geo_id
+  - name: acs_date
+    entity: acs_timeseries
+    column: date
+    type: date
+  - name: migration_variable_name
+    entity: migration_attributes
+    column: variable_name
+  - name: migration_return_group
+    entity: migration_attributes
+    column: return_group
+  - name: migration_income_bracket
+    entity: migration_attributes
+    column: income_bracket
+  - name: migration_age_group
+    entity: migration_attributes
+    column: age_group
+  - name: migration_seasonally_adjusted
+    entity: migration_attributes
+    column: seasonally_adjusted
+  - name: migration_frequency
+    entity: migration_attributes
+    column: frequency
+  - name: migration_geo_id
+    entity: migration_timeseries
+    column: geo_id
+  - name: migration_date
+    entity: migration_timeseries
+    column: date
+    type: date
+  - name: migration_flow_from_geo_id
+    entity: migration_flow
+    column: from_geo_id
+  - name: migration_flow_to_geo_id
+    entity: migration_flow
+    column: to_geo_id
+  - name: migration_flow_variable_name
+    entity: migration_flow
+    column: variable_name
+  - name: migration_flow_date
+    entity: migration_flow
     column: date
     type: date
 
@@ -37,12 +119,26 @@ metrics:
     entity: acs_timeseries
     expression: value
     description: >
-      Raw ACS value for a given (variable, geo_id, date). Which real-world
-      quantity this represents depends on `variable` — join to
-      acs_attributes to filter (e.g. "Total Population", "Median Household
-      Income").
+      Raw ACS value for (geo_id, variable, date). Join to acs_attributes for
+      what this represents.
+  - name: migration_value
+    entity: migration_timeseries
+    expression: value
+  - name: migration_flow_value
+    entity: migration_flow
+    expression: value
+    description: Value of the flow (population count, income, or households) from from_geo_id to to_geo_id.
 
 cross_domain_keys:
   - entity: acs_timeseries
     join_key: geo_id
+    references: geography.geography.geo_id
+  - entity: migration_timeseries
+    join_key: geo_id
+    references: geography.geography.geo_id
+  - entity: migration_flow
+    join_key: from_geo_id
+    references: geography.geography.geo_id
+  - entity: migration_flow
+    join_key: to_geo_id
     references: geography.geography.geo_id

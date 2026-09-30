@@ -1,4 +1,4 @@
-"""Structured run-log schema. See plan §6.
+"""Structured run-log schema.
 
 One RunLog per (experiment, question, trial) attempt. Written immediately
 after each question completes (not buffered) via logging_/sink.py, so
@@ -30,13 +30,13 @@ class RoutingDecision(BaseModel):
 
 class RunLog(BaseModel):
     run_id: str
-    experiment: Literal["unified", "routed"]
+    experiment: Literal["schema_only", "unified", "tool_routed"]
     model_id: str
     effort: str
     thinking_mode: str
 
     question_id: str
-    question_category: Literal["single_domain", "cross_domain", "executive"]
+    question_category: Literal["factual", "executive", "single_domain", "cross_domain"]
     question_text: str
     trial_index: int
 
@@ -47,11 +47,12 @@ class RunLog(BaseModel):
     sql_execution_errors: list[str] = Field(default_factory=list)
 
     final_answer_text: str = ""
-    final_answer_structured: dict | None = None
+    final_answer_structured: dict | None = None  # unused; kept so older JSONL logs still load
 
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_cache_read_tokens: int = 0
+    total_cache_creation_tokens: int = 0
     wall_clock_ms: int = 0
     hit_iteration_cap: bool = False
 

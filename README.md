@@ -1,25 +1,31 @@
-# Semantic Agent Study
+# Evaluating Data Agent Architectures on Enterprise Questions
 
-A research prototype comparing **unified vs. decomposed semantic-layer
-architectures** for enterprise AI data agents. Not a production application —
-a controlled experiment. Full design rationale, confounders considered, and
-milestone tracking: see [`PLAN.md`](./PLAN.md).
+A controlled comparison of three agent architectures for answering business questions derived from real enterprise use cases.
 
-Two experiments run against the same underlying Snowflake data and the same
-frozen question bank:
+Across all three conditions, the study holds constant:
 
-- **Experiment A (unified)** — one agent with the full, generated unified
-  semantic model.
-- **Experiment B (routed)** — an LLM router selects domain(s) per question;
-  a specialist agent runs with only the selected domain's semantic model.
+- the underlying structured data, and
 
-Both use the *same* shared agent-loop implementation (`agents/loop.py`), so
-the only variable between conditions is semantic architecture, not
-incidental implementation differences.
+- the evaluation framework and criteria.
 
-A second track (**Phase 1**, not yet built — see `PLAN.md` § Phase 1)
-repeats the same comparison on Snowflake Cortex Analyst, as a directional
-replication check against a managed product.
+In every condition, the model writes the SQL. The tools only execute it.
+
+| | schema_only | unified | tool_routed |
+|---|---|---|---|
+| Context | Physical schema (tables, columns, types) | Generated `unified_model.yaml` | Per-domain YAML via `get_semantic_model` |
+| SQL execution | `run_sql` | `run_sql` | `query_<domain>`  |
+| Cross-domain JOINS | Yes | Yes | No
+
+## Comparisons
+
+**schema_only vs. unified**
+Tests the effect of adding semantic context while keeping the SQL interface the same.
+
+**unified vs. tool_routed**
+Tests a unified semantic model against decomposed domain tools using the same underlying semantic content.
+
+## Evaluation & Scoring
+See [`eval/eval_strategies.md`](eval/eval_strategies.md).
 
 ## Setup
 
@@ -27,111 +33,94 @@ replication check against a managed product.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-
 cp .env.example .env
-# fill in ANTHROPIC_API_KEY and SNOWFLAKE_* — see .env.example for what's needed
+# fill in ANTHROPIC_API_KEY and SNOWFLAKE_*
 ```
 
-### Verify Snowflake access (M0)
+This account enforces MFA, so Snowflake must use **key-pair** auth (password
+auth fails non-interactively).
 
 ```bash
-python scripts/setup_snowflake.py
+mkdir -p ~/.snowflake
+openssl genrsa -out ~/.snowflake/rsa_key.p8 2048
+openssl rsa -in ~/.snowflake/rsa_key.p8 -pubout -out ~/.snowflake/rsa_key.pub
+chmod 600 ~/.snowflake/rsa_key.p8
+grep -v -- '-----' ~/.snowflake/rsa_key.pub | tr -d '\n'; echo
 ```
 
-Connects read-only, lists tables in the `SNOWFLAKE_PUBLIC_DATA_FREE` schema,
-and diffs them against what `semantic_models/domains/*.yaml` assumes. **The
-domain YAML files were authored from public Snowflake documentation, not a
-live account** — table/column names need correcting against this script's
-output before trusting them. See `PLAN.md` → Implementation status for what's
-still open (the FDIC/CFPB/HMDA dataset specifics in particular).
+In Snowsight (`SECURITYADMIN` / `ACCOUNTADMIN`):
 
-## Semantic models
-
-```bash
-# Validate all domain + unified semantic model YAML files
-python scripts/validate_semantic_models.py
-
-# Regenerate the unified model from the domain files after editing any of them
-python scripts/generate_unified_model.py
-
-# CI-style check: fails if the checked-in unified model is stale
-python scripts/generate_unified_model.py --check
+```sql
+ALTER USER <your_username> SET RSA_PUBLIC_KEY='<one-line public key>';
 ```
 
-The unified model is **generated, not hand-authored** — see
-`semantic_models/schema.py` and `PLAN.md` §4 for why.
-
-## Running an agent manually
+Set `SNOWFLAKE_PRIVATE_KEY_PATH` in `.env` (and `SNOWFLAKE_PRIVATE_KEY_PASSPHRASE`
+if the key is encrypted). Then:
 
 ```bash
-python -m agents.unified_agent "What was the mortgage rate trend last quarter?"
-python -m agents.routed_agent "What was the mortgage rate trend last quarter?"
-```
-
-Both log a full `RunLog` (routing decision if applicable, tool calls,
-generated SQL, token usage, latency) to `runs/<run_id>.jsonl`.
-
-## Tests
-
-```bash
+python scripts/setup_snowflake.py   # read-only ping; diffs live tables vs YAML
 pytest
 ```
 
-Covers semantic model schema validation, the cross-domain-key
-promotion/dropping logic in `merge_domain_models`, the SQL read-only
-guardrail, the router's structured-output parsing (mocked, no live API
-calls), judge/calibration math, and the eval-aggregation helpers.
-
-## Running the eval harness
+## Run an agent
 
 ```bash
-# Pilot: first 5 questions through both experiments (M3 exit criteria)
+python -m agents.schema_only_agent "What is ONB's Evansville deposit share?"
+python -m agents.unified_agent "What is ONB's Evansville deposit share?"
+python -m agents.tool_router_agent "What is ONB's Evansville deposit share?"
+```
+
+Each write a `RunLog` to `runs/<run_id>.jsonl`.
+
+## Run the eval
+
+Needs Anthropic + Snowflake credentials.
+
+```bash
+python -m eval.run_eval --question fa-003          # one question, all three conditions
+python -m eval.run_eval --question fa-003 --question fa-009
 python -m eval.run_eval --pilot 5
-
-# Full frozen question bank
-python -m eval.run_eval
+python -m eval.run_eval                           # full bank
 ```
 
-Requires live `ANTHROPIC_API_KEY` and `SNOWFLAKE_*` credentials. **The
-question banks in `eval/questions/*.yaml` are starter placeholders**, not
-the frozen `eval-v1` bank the plan calls for — see the header comment in
-each file. Author and freeze the real bank (≥15 single-domain, ≥15
-cross-domain, ≥10 executive) before treating results as meaningful.
-
-Before trusting judge-only scores on a full run, calibrate against a
-human-labeled subset:
+Re-score existing logs (no new agent runs):
 
 ```bash
-python -m eval.calibration path/to/paired_scores.json
+python -m scripts.score_runs --question fa-003 \
+  --runs runs/<schema_only>.jsonl runs/<unified>.jsonl runs/<tool_routed>.jsonl
 ```
 
-Gate: judge/human agreement must clear `κ ≥ 0.6`
-(`config/experiment.yaml` → `judge.calibration_kappa_threshold`) or the
-rubric needs revision first — see `eval/judge_rubric.md`.
-
-## Analysis
+`eval.run_eval` writes `runs/<prefix>-summary.csv`,
+`runs/<prefix>-failure-report.md`, and `runs/<run_id>-scores.json`.
+Cost/latency from logs already on disk:
 
 ```bash
 python -m analysis.aggregate_results <run_id_prefix>
 ```
 
-Rolls up persisted `runs/*.jsonl` logs into a cost/latency/routing-accuracy
-comparison table between the two experiments. `<run_id_prefix>` matches
-what `eval/run_eval.py` printed (reads
-`runs/<prefix>-unified.jsonl` and `runs/<prefix>-routed.jsonl`).
+## Semantic models
 
-## Repository layout
+Domain YAML in `semantic_models/domains/` is the source of truth. The unified
+model and condition-1 catalog are generated:
 
-See `PLAN.md` §1 for the full annotated layout and the rationale behind it.
+```bash
+python scripts/validate_semantic_models.py
+python scripts/audit_semantic_models.py          # live Snowflake; needs .env
+python scripts/generate_unified_model.py
+python scripts/generate_unified_model.py --check
+python scripts/generate_schema_catalog.py        # live columns; needs .env
+```
+
+Do not hand-edit `semantic_models/unified/unified_model.yaml`.
+
+## Layout
 
 ```
-config/             frozen experiment + domain config
-semantic_models/     domain YAMLs (source of truth) + generated unified model
-agents/              shared loop, tools, sql_executor, router, unified/routed agents
-logging_/            RunLog schema + JSONL sink
-eval/                question banks, ground truth, LLM judge, run orchestration
-analysis/            cost/latency/comparison rollups
-scripts/             setup + semantic-model generation/validation
-tests/
-runs/                gitignored — JSONL logs land here
+config/             experiment.yaml, domains.yaml
+semantic_models/    domain YAML, generated unified model, raw catalog
+agents/             loop, executor, three condition wrappers, prompts
+eval/               question bank, judge, run_eval, scoring
+analysis/           cost/latency rollup
+scripts/            Snowflake setup + generators
+runs/               gitignored logs
 ```

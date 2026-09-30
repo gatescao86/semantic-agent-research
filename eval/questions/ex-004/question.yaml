@@ -1,0 +1,66 @@
+id: ex-004
+category: executive
+difficulty: hard
+text: >
+  Given Forward Bank's current footprint, where are we underweight
+  relative to local growth? Stay inside markets we already serve.
+
+data_vintage: "FDIC Summary of Deposits 2025-06-30; ACS 5-year 2024"
+
+expected_domains:
+  minimum_required: [geography, deposits, demographics]
+  optional_enrichment: [financial_institutions]
+
+criteria:
+  - id: "001"
+    match_criteria: >
+      PASS if the answer treats the footprint as Forward Bank of Wisconsin
+      (cert-equivalent: a Wisconsin-centered branch set, optionally the
+      one Minnesota county). FAIL if it is not Forward Bank.
+  - id: "002"
+    match_criteria: >
+      PASS if the answer names Vilas County as underweight relative to
+      local growth (lowest in-market share in the footprint, with the
+      strongest 5-year population and income growth). Other thin-share
+      growing counties (Oneida, Chippewa, Marathon) may appear alongside
+      it. FAIL if Vilas is omitted, if the named hits are cities with no
+      Forward branches, or if a high-share core county (Clark, Price, or
+      Taylor) is presented as a thin-share underweight market.
+  - id: "003"
+    match_criteria: >
+      PASS if each named underweight market is given both an in-market
+      deposit share and a prior-period local-growth figure (5-year
+      population, median household income, or another ACS demographic
+      trend). FAIL if it lists counties with only share, only a current
+      level, or only Forward's own deposit dollars.
+  - id: "006"
+    match_criteria: >
+      PASS if the answer reports Forward Bank's deposit share of Vilas
+      County. FAIL if that share is inaccurate or omitted.
+    value: 0.5
+    unit: percent
+    tolerance_abs: 0.4
+    ground_truth_sql: ground_truth/county_share.sql
+  - id: "007"
+    match_criteria: >
+      PASS if the answer reports Vilas County five-year population growth.
+      FAIL if that figure is inaccurate or omitted.
+    value: 8.7
+    unit: percent
+    tolerance_abs: 1.0
+    ground_truth_sql: ground_truth/acs_vilas_growth.sql
+  - id: "008"
+    match_criteria: >
+      PASS if the answer reports Vilas County five-year median household
+      income growth. FAIL if that figure is inaccurate or omitted.
+    value: 45.4
+    unit: percent
+    tolerance_abs: 2.0
+    ground_truth_sql: ground_truth/acs_vilas_income.sql
+  - id: "004"
+    match_criteria: >
+      PASS if the answer synthesizes the screen into an implication for
+      the existing franchise (which counties are underweight relative to
+      local growth versus which are already core). FAIL if share and
+      growth are left as disconnected tables, or if the recommendation is
+      a national expansion list unrelated to the current counties.

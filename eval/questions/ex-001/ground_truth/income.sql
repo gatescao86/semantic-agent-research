@@ -1,0 +1,10 @@
+SELECT
+    t.geo_id,
+    g.geo_name,
+    t.value AS median_hh_income_usd
+FROM SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.AMERICAN_COMMUNITY_SURVEY_TIMESERIES t
+JOIN SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.GEOGRAPHY_INDEX g
+  ON g.geo_id = t.geo_id
+WHERE t.variable = 'B19013_001E_5YR_2024'
+  AND t.geo_id IN ('geoId/C21780', 'geoId/18')
+ORDER BY t.geo_id

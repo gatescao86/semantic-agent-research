@@ -1,4 +1,4 @@
-"""Judge-vs-human calibration check. See plan §7.
+"""Judge-vs-human calibration check. See eval/eval_strategies.md.
 
 Since the judge runs at the same model tier as the answering agents (the
 user's explicit choice — cheaper, but higher self-preference-bias risk than
@@ -64,7 +64,7 @@ def load_paired_scores(path: str | Path) -> tuple[list[int], list[int]]:
     """Load a JSON file shaped {"judge_scores": [...], "human_scores": [...]}.
 
     Both lists must be paired by index (same question, same dimension, in
-    the same order) — see plan §7 for the calibration sampling procedure
+    the same order) — see eval/eval_strategies.md for the calibration sampling procedure
     (stratified ~20% subset across categories and both conditions).
     """
     with open(path) as f:
@@ -92,7 +92,7 @@ def main() -> None:
     if not result.meets_threshold:
         print(
             "\nDo NOT proceed to judge-only scoring on the full run. "
-            "Revise the rubric (eval/judge_rubric.md) and recalibrate first.",
+            "Revise the rubric (eval/eval_strategies.md) and recalibrate first.",
             file=sys.stderr,
         )
         raise SystemExit(1)

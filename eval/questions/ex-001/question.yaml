@@ -1,0 +1,96 @@
+id: ex-001
+category: executive
+difficulty: hard
+text: >
+  Give me a competitive landscape analysis for Evansville, IN for deposit and lending. Include any data or trends that you think are relevant (e.g. economic conditions, demographics, etc.)
+
+data_vintage: "FDIC Summary of Deposits 2025-06-30; ACS 5-year 2024; HMDA 2025; BLS LAUS annual 2025"
+
+expected_domains:
+  minimum_required: [geography, deposits, mortgage_lending]
+  optional_enrichment:
+    [economic_indicators, demographics, financial_institutions, markets, disaster_risk]
+
+criteria:
+  - id: "001"
+    match_criteria: >
+      PASS if the answer treats the market as the Evansville metro / CBSA
+      (named as metro, MSA, or CBSA, or with Vanderburgh, Warrick, and
+      Posey counties in Indiana plus Henderson County, Kentucky). FAIL if
+      the market is a single county, the city proper, Indiana statewide,
+      or includes a county that is not in that CBSA (for example Gibson).
+  - id: "002"
+    match_criteria: >
+      PASS if the answer reports the size of the Evansville deposit market
+      as a dollar total. FAIL if no market-total is stated, or if a single
+      institution's deposits are presented as the market total.
+    value: 14314109
+    unit: USD_thousands
+    tolerance: 0.01
+    ground_truth_sql: ground_truth/market_total.sql
+  - id: "011"
+    match_criteria: >
+      PASS if the answer reports Old National Bank's Evansville in-market
+      deposits as a dollar stock. FAIL if that figure is inaccurate or omitted.
+    value: 5605447
+    unit: USD_thousands
+    tolerance: 0.01
+    ground_truth_sql: ground_truth/onb_deposits.sql
+  - id: "003"
+    match_criteria: >
+      PASS if the answer names Old National Bank, United Fidelity Bank,
+      Fifth Third Bank, German American Bank, and Stock Yards Bank among
+      the largest deposit holders in the Evansville market. FAIL if any
+      of the five is missing.
+  - id: "004"
+    match_criteria: >
+      PASS if the answer characterizes how concentrated the Evansville
+      deposit market is. FAIL if concentration is not addressed.
+  - id: "005"
+    match_criteria: >
+      PASS if the answer reports the Evansville metro unemployment rate.
+      FAIL if it is omitted. 
+    value: 3.4
+    unit: percent
+    tolerance_abs: 0.3
+    ground_truth_sql: ground_truth/unemployment_metro.sql
+  - id: "006"
+    match_criteria: >
+      PASS if the answer reports Evansville metro median household income.
+      FAIL if it is omitted.
+    value: 68232
+    unit: USD
+    tolerance: 0.01
+    ground_truth_sql: ground_truth/income_metro.sql
+  - id: "007"
+    match_criteria: >
+      PASS if the answer reports local mortgage origination activity for
+      the Evansville market (a ranking or volumes of lenders originating
+      in the metro). FAIL if lending is only bank-wide call-report loan
+      growth, or is omitted.
+  - id: "008"
+    match_criteria: >
+      PASS if the answer names Liberty Credit Union and Mortgage Masters
+      of Indiana among the largest local originators. FAIL if either is
+      missing, or if only banks are presented as the lending leaders.
+  - id: "012"
+    match_criteria: >
+      PASS if the answer reports Liberty Credit Union's Evansville
+      mortgage originations as a dollar volume. FAIL if that figure is
+      inaccurate or omitted.
+    value: 227670000
+    unit: USD
+    tolerance: 0.01
+    ground_truth_sql: ground_truth/liberty_originations.sql
+  - id: "009"
+    match_criteria: >
+      PASS if the answer notes that the lending competitive set differs
+      from the deposit set (for example credit unions or non-banks lead
+      originations, or a large deposit holder is not a large originator).
+      FAIL if lending is treated as the same ranking as deposits.
+  - id: "010"
+    match_criteria: >
+      PASS if the answer synthesizes deposit structure and lending activity
+      into a competitive implication (who is entrenched, where share is
+      contestable, what not to treat as organic growth). FAIL if those
+      findings are left as disconnected tables.

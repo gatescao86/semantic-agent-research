@@ -1,0 +1,22 @@
+id: fa-009
+category: factual
+difficulty: easy
+text: >
+  What is the latest H.8 seasonally adjusted weekly deposits for all commercial banks?
+
+data_vintage: 'H.8 Assets and Liabilities of Commercial Banks in the United States; weekly SA through 2026-05-20 in this extract'
+
+expected_domains:
+  minimum_required: [economic_indicators]
+  optional_enrichment: []
+
+ground_truth_sql_path: ground_truth/answer.sql
+
+criteria:
+  - id: "001"
+    match_criteria: >
+      PASS if the answer states the latest H.8 seasonally adjusted weekly deposits for all commercial banks as a dollar level. FAIL if the figure is missing, is a different H.8 panel, is not seasonally adjusted, or substitutes a monthly or quarterly observation.
+    tolerance: 0.01
+    value: 19274332700000
+    unit: USD
+    ground_truth_sql: ground_truth/answer.sql

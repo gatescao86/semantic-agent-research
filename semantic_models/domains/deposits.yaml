@@ -1,0 +1,128 @@
+# Verified against live schema — see geography.yaml header note.
+
+domain: deposits
+description: >
+  FDIC-insured bank branch locations and their reported deposit amounts
+  (FDIC Summary of Deposits, released annually). Branch-level, not
+  customer/account-level — no individual depositor data exists here or
+  anywhere in this dataset.
+
+entities:
+  - name: branch
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FDIC_BRANCH_LOCATIONS_INDEX
+    primary_key: [fdic_institution_id, fdic_branch_id]
+    description: >
+      One row per FDIC-insured bank branch. holding_company_name and
+      institution_name identify who operates it; fdic_institution_certificate_number
+      is the key to bridge into the financial_institutions domain.
+  - name: deposit_attributes
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FDIC_SUMMARY_OF_DEPOSITS_ATTRIBUTES
+    primary_key: variable
+    description: >
+      Catalog of Summary-of-Deposits variables. Several deposit series
+      exist at different grains (in-market branch books vs institution-wide
+      totals). JOIN this table to timeseries on `variable` and filter
+      `variable_name` here for branch deposits — do not add every series
+      whose name contains "deposit".
+  - name: deposit_timeseries
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.FDIC_SUMMARY_OF_DEPOSITS_TIMESERIES
+    primary_key: [fdic_institution_id, fdic_branch_id, variable, date]
+    description: >
+      One row per branch, Summary-of-Deposits variable, and year. JOIN
+      `deposit_attributes` on `variable` and filter series names there;
+      do not scan this table to discover series names.
+
+relationships:
+  - from: deposit_timeseries.variable
+    to: deposit_attributes.variable
+    type: many_to_one
+  - from: deposit_timeseries.fdic_branch_id
+    to: branch.fdic_branch_id
+    type: many_to_one
+    # NOTE: the true key is the (fdic_institution_id, fdic_branch_id) pair;
+    # this schema only supports single-column relationships, so fdic_branch_id
+    # alone is used as an approximation. Include fdic_institution_id in a
+    # WHERE clause too when precision matters.
+
+dimensions:
+  - name: branch_institution_name
+    entity: branch
+    column: institution_name
+  - name: branch_holding_company_name
+    entity: branch
+    column: holding_company_name
+  - name: branch_type
+    entity: branch
+    column: branch_type
+  - name: branch_rssdid
+    entity: branch
+    column: rssdid
+  - name: deposit_variable_name
+    entity: deposit_attributes
+    column: variable_name
+  - name: deposit_frequency
+    entity: deposit_attributes
+    column: frequency
+  - name: deposit_date
+    entity: deposit_timeseries
+    column: date
+    type: date
+  - name: branch_fdic_institution_certificate_number
+    entity: branch
+    column: fdic_institution_certificate_number
+  - name: branch_city
+    entity: branch
+    column: city
+  - name: branch_geo_id_state
+    entity: branch
+    column: geo_id_state
+  - name: branch_geo_id_zip
+    entity: branch
+    column: geo_id_zip
+  - name: branch_geo_id_county
+    entity: branch
+    column: geo_id_county
+  - name: branch_geo_id_cbsa
+    entity: branch
+    column: geo_id_cbsa
+  - name: branch_geo_id_metro_div
+    entity: branch
+    column: geo_id_metro_div
+  - name: deposit_attributes_measure
+    entity: deposit_attributes
+    column: measure
+  - name: deposit_attributes_measurement_type
+    entity: deposit_attributes
+    column: measurement_type
+
+metrics:
+  - name: deposit_value
+    entity: deposit_timeseries
+    expression: value
+    description: >
+      Raw Summary-of-Deposits value for (branch, variable, date). Join to
+      deposit_attributes via variable to identify what this represents
+      (e.g. total deposits at that branch).
+
+cross_domain_keys:
+  - entity: branch
+    join_key: geo_id_county
+    references: geography.geography.geo_id
+  - entity: branch
+    join_key: geo_id_state
+    references: geography.geography.geo_id
+  - entity: branch
+    join_key: geo_id_cbsa
+    references: geography.geography.geo_id
+  - entity: branch
+    join_key: geo_id_zip
+    references: geography.geography.geo_id
+  - entity: branch
+    join_key: geo_id_metro_div
+    references: geography.geography.geo_id
+  - entity: branch
+    join_key: fdic_institution_certificate_number
+    references: financial_institutions.institution.fdic_cert
+  - entity: branch
+    join_key: rssdid
+    references: financial_institutions.institution.id_rssd

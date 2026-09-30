@@ -126,20 +126,32 @@ def validate_references(model: SemanticModel) -> list[str]:
 DOMAINS_DIR = Path(__file__).resolve().parent / "domains"
 
 
-def merge_domain_models(domain_names: list[str]) -> tuple[dict, list[str]]:
-    """Build a merged semantic model dict for a routed set of domains.
+def study_tables() -> list[tuple[str, tuple[str, ...]]]:
+    """Fully-qualified tables in the study, with the domain(s) that name them.
 
-    Used by agents/routed_agent.py (Experiment B) when the router selects
-    2+ domains for one question. Cross-domain foreign keys are promoted to
-    first-class relationships only when the *referenced* domain is also in
-    `domain_names` — otherwise the routed agent has no way to actually join
-    to it (that table isn't in its view at all), and silently promoting the
-    relationship would hide exactly the failure mode this study wants to
-    measure (H3: inability to synthesize across domains when routing omits
-    a required domain). Returns (merged_model_dict, unavailable_refs) where
-    unavailable_refs are cross-domain keys that were dropped because their
-    target domain wasn't routed — surfaced as a comment in the rendered
-    YAML so the agent (and a human reading the log) can see what's missing.
+    The table universe for all three conditions. Condition 1's physical
+    catalog and conditions 2/3's YAML must cover the same tables — dumping
+    the rest of the Marketplace into condition 1 would confound "no
+    semantics" with "cannot find the table."
+    """
+    by_fqdn: dict[str, list[str]] = {}
+    for path in sorted(DOMAINS_DIR.glob("*.yaml")):
+        model = load_semantic_model(path)
+        for entity in model.entities:
+            by_fqdn.setdefault(entity.table, []).append(model.domain)
+    return [(fqdn, tuple(domains)) for fqdn, domains in sorted(by_fqdn.items())]
+
+
+def merge_domain_models(domain_names: list[str]) -> tuple[dict, list[str]]:
+    """Build a merged semantic model dict for a subset of domains.
+
+    Cross-domain foreign keys are promoted to first-class relationships
+    only when the *referenced* domain is also in `domain_names`. Returns
+    (merged_model_dict, unavailable_refs) where unavailable_refs are
+    cross-domain keys that were dropped because their target domain wasn't
+    in the subset. Used by tests covering CDK promotion; the scored unified
+    condition uses scripts/generate_unified_model.py, which promotes every
+    CDK.
     """
     models = [load_semantic_model(DOMAINS_DIR / f"{name}.yaml") for name in domain_names]
 
@@ -168,13 +180,13 @@ def merge_domain_models(domain_names: list[str]) -> tuple[dict, list[str]]:
             else:
                 unavailable_refs.append(
                     f"{m.domain}.{cdk.entity}.{cdk.join_key} references "
-                    f"{cdk.references} — domain {ref_domain!r} is not in this routed view"
+                    f"{cdk.references} — domain {ref_domain!r} is not in this subset"
                 )
 
     merged = {
         "domain": "+".join(domain_names),
         "description": (
-            "Routed view combining: " + ", ".join(m.domain for m in models) + "."
+            "Combined view of: " + ", ".join(m.domain for m in models) + "."
         ),
         "entities": entities,
         "relationships": relationships,
@@ -183,3 +195,26 @@ def merge_domain_models(domain_names: list[str]) -> tuple[dict, list[str]]:
         "cross_domain_keys": [],
     }
     return merged, unavailable_refs
+
+
+def domain_table_names(domain: str) -> set[str]:
+    """Fully-qualified table names (uppercased) referenced by one domain's entities.
+
+    Used by agents/sql_tables.py's check_domain_scope (condition 3) to enforce
+    that each per-domain SQL tool can only reach tables within its own
+    domain — without this, the per-domain tools would just be
+    differently-named copies of the same unrestricted SQL tool, and
+    condition 3 wouldn't actually test decomposed *scope*, only decomposed
+    *labeling*.
+    """
+    model = load_semantic_model(DOMAINS_DIR / f"{domain}.yaml")
+    return {e.table.upper() for e in model.entities}
+
+
+def raw_domain_model_text(domain: str) -> str:
+    """Raw YAML text for one domain's semantic model file, verbatim
+    (including comments) — what condition 3's get_semantic_model(domain)
+    tool returns on demand, since (unlike conditions 1/2) nothing is
+    front-loaded into the system prompt.
+    """
+    return (DOMAINS_DIR / f"{domain}.yaml").read_text()

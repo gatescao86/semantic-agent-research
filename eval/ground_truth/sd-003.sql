@@ -1,5 +1,0 @@
--- Ground truth for eval/questions/single_domain.yaml#sd-003
--- BLOCKED: needs a real, verified company name/CIK from
--- config/domains.yaml's frozen_scope.target_companies list, which is not
--- yet populated (pending live Snowflake access). Do not use this question
--- until that's filled in and this file is written against a real company.

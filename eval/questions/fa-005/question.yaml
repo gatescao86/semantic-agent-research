@@ -1,0 +1,22 @@
+id: fa-005
+category: factual
+difficulty: easy
+text: >
+  What is Fifth Third Bank's deposit market share in the Evansville, IN metro area?
+
+data_vintage: 'FDIC Summary of Deposits; latest date in this extract is 2025-06-30'
+
+expected_domains:
+  minimum_required: [geography, deposits, financial_institutions]
+  optional_enrichment: []
+
+ground_truth_sql_path: ground_truth/answer.sql
+
+criteria:
+  - id: "001"
+    match_criteria: >
+      PASS if the answer states Fifth Third Bank's deposit share of the Evansville, IN metro (CBSA). FAIL if the figure is missing, uses a county set that is not that CBSA, or reports deposits as a dollar stock without a share.
+    tolerance_abs: 0.5
+    value: 13.641
+    unit: percent
+    ground_truth_sql: ground_truth/answer.sql

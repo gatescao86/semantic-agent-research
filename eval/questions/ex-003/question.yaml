@@ -1,0 +1,60 @@
+id: ex-003
+category: executive
+difficulty: hard
+text: >
+  Benchmark United Community Bank's (Greenville, SC) loan and deposit growth
+  against the weekly Federal Reserve H.8. How do we compare to the industry,
+  and what should I not over-read?
+
+data_vintage: "H.8 Assets and Liabilities of Commercial Banks in the United States (weekly series through 2026-05-20 in this extract); FFIEC call report through 2026-03-31"
+
+expected_domains:
+  minimum_required: [economic_indicators, financial_institutions]
+  optional_enrichment: []
+
+criteria:
+  - id: "001"
+    match_criteria: >
+      PASS if the answer uses Federal Reserve H.8 industry aggregates for
+      bank credit, loans, or deposits. FAIL if it treats weekly Federal
+      Reserve commercial-paper series, G.20 finance-company data, or other
+      non-H.8 Fed releases as H.8.
+  - id: "002"
+    match_criteria: >
+      PASS if the answer names the H.8 peer panel it is using (all
+      commercial banks, domestically chartered, large domestically
+      chartered, or small domestically chartered). FAIL if the industry
+      comparison is unlabelled "the Fed" or mixes panels without saying so.
+  - id: "003"
+    match_criteria: >
+      PASS if own-bank loan and deposit figures are for United Community
+      Bank of Greenville, SC (United Community Banks, Inc.), from
+      institution-level call-report metrics. FAIL if another United
+      Community Bank is used, or if FDIC Summary of Deposits branch
+      deposits are treated as the Treasury metrics.
+  - id: "004"
+    match_criteria: >
+      PASS if the comparison is of growth rates over a stated window, not
+      of dollar levels of United Community Bank against the industry
+      aggregate. FAIL if it compares a ~$28B bank's stocks to the H.8
+      industry stock without a rate.
+  - id: "005"
+    match_criteria: >
+      PASS if the answer treats weekly H.8 and quarterly call-report dates
+      as different frequencies (aligns them, or states that they do not
+      match). FAIL if the latest H.8 week and the latest call-report
+      quarter are treated as the same observation.
+  - id: "006"
+    match_criteria: >
+      PASS if, when both seasonally adjusted and not-seasonally-adjusted
+      series appear, the answer says which is which. FAIL if SA and NSA
+      figures are mixed silently. PASS if only one adjustment is used and
+      named or unambiguous.
+  - id: "007"
+    match_criteria: >
+      PASS if the answer synthesizes whether United Community Bank is ahead
+      of or behind industry loan and deposit growth into a Treasury
+      implication, including what not to over-read (frequency mismatch,
+      peer panel, M&A). FAIL if H.8 and call-report figures are left as
+      disconnected tables, or if equity-price moves are treated as the
+      benchmark.

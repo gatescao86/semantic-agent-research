@@ -1,30 +1,76 @@
-# NOTE: table/column names are best-effort from Snowflake's public docs
-# (data-docs.snowflake.com) and were not verified against a live account
-# during planning (no credentials available). Confirm exact names via
-# `scripts/setup_snowflake.py` and `DESCRIBE TABLE` during M0, and correct
-# this file before it is used to answer real questions. Every other domain
-# file has the same caveat.
-
 domain: geography
 description: >
-  Geographic entities (states, counties, cities/CBSAs, zip codes) and the
-  relationships between them, standardized across Census Bureau, Data
-  Commons, and Statistics Canada sources. Used to resolve place names (e.g.
-  "Evansville, IN") into standardized geography IDs and to join other
-  domains by location. Rarely the sole answer to a question by itself —
-  usually a join target for economic_indicators, demographics, or
-  competitor_intelligence.
+  Geographic entities and their relationships/hierarchy — states, counties,
+  CBSAs, zip codes, census tracts/block groups. Every other domain in this
+  study joins to it via a geo_id-family column. Rarely the sole answer to a
+  question by itself; almost always a join target.
 
 entities:
   - name: geography
-    table: SNOWFLAKE_PUBLIC_DATA_FREE.CYBERSYN.GEOGRAPHY_INDEX
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.GEOGRAPHY_INDEX
     primary_key: geo_id
     description: >
-      One row per geographic entity (state, county, city/CBSA, zip code,
-      census block group). level distinguishes the granularity.
+      One row per geographic entity, joinable to all other domains via
+      geo_id. level distinguishes granularity (state, county, cbsa, zip, ...).
+  - name: geography_hierarchy
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.GEOGRAPHY_HIERARCHY
+    primary_key: [parent_geo_id, geo_id]
+    description: Parent/child geography pairs (e.g. county -> state).
+  - name: geography_relationship
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.GEOGRAPHY_RELATIONSHIPS
+    primary_key: [geo_id, related_geo_id, relationship_type]
+    description: >
+      Relationships between geographies of differing levels (contains,
+      overlaps, etc.) — more general than the strict parent/child hierarchy.
+  - name: geography_overlap
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.GEOGRAPHY_OVERLAPS
+    primary_key: [geo_id, overlaps_with]
+    description: Pairs of geographies (e.g. county/zip) that spatially overlap.
+  - name: geography_characteristic
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.GEOGRAPHY_CHARACTERISTICS
+    primary_key: [geo_id, relationship_type]
+    description: >
+      Attributes of a geography (GEOJSON/WKT coordinates, state abbreviation,
+      FIPS code, etc.) as key-value pairs.
+  - name: address
+    table: SNOWFLAKE_PUBLIC_DATA_FREE.PUBLIC_DATA_FREE.US_ADDRESSES
+    primary_key: address_id
+    description: >
+      Individual US addresses geocoded to lat/long and mapped to geo_id-style
+      identifiers (id_zip, id_city, id_state, id_country).
 
 relationships:
-  - from: geography.parent_geo_id
+  - from: geography_hierarchy.geo_id
+    to: geography.geo_id
+    type: many_to_one
+  - from: geography_hierarchy.parent_geo_id
+    to: geography.geo_id
+    type: many_to_one
+  - from: geography_relationship.geo_id
+    to: geography.geo_id
+    type: many_to_one
+  - from: geography_relationship.related_geo_id
+    to: geography.geo_id
+    type: many_to_one
+  - from: geography_overlap.geo_id
+    to: geography.geo_id
+    type: many_to_one
+  - from: geography_overlap.overlaps_with
+    to: geography.geo_id
+    type: many_to_one
+  - from: geography_characteristic.geo_id
+    to: geography.geo_id
+    type: many_to_one
+  - from: address.id_state
+    to: geography.geo_id
+    type: many_to_one
+  - from: address.id_zip
+    to: geography.geo_id
+    type: many_to_one
+  - from: address.id_city
+    to: geography.geo_id
+    type: many_to_one
+  - from: address.id_country
     to: geography.geo_id
     type: many_to_one
 
@@ -35,13 +81,67 @@ dimensions:
   - name: geo_level
     entity: geography
     column: level
-    type: categorical
-    # expected values include something like: state, county, cbsa, zip, county_subdivision
+  - name: geography_relationship_type
+    entity: geography_relationship
+    column: relationship_type
+  - name: geography_geo_id
+    entity: geography
+    column: geo_id
+  - name: geography_hierarchy_parent_geo_id
+    entity: geography_hierarchy
+    column: parent_geo_id
+  - name: geography_hierarchy_geo_id
+    entity: geography_hierarchy
+    column: geo_id
+  - name: geography_relationship_geo_name
+    entity: geography_relationship
+    column: geo_name
+  - name: geography_relationship_geo_id
+    entity: geography_relationship
+    column: geo_id
+  - name: geography_relationship_level
+    entity: geography_relationship
+    column: level
+  - name: geography_relationship_related_geo_name
+    entity: geography_relationship
+    column: related_geo_name
+  - name: geography_relationship_related_geo_id
+    entity: geography_relationship
+    column: related_geo_id
+  - name: geography_relationship_related_level
+    entity: geography_relationship
+    column: related_level
+  - name: geography_overlap_geo_id
+    entity: geography_overlap
+    column: geo_id
+  - name: geography_overlap_overlaps_with
+    entity: geography_overlap
+    column: overlaps_with
+  - name: geography_characteristic_geo_id
+    entity: geography_characteristic
+    column: geo_id
+  - name: geography_characteristic_geo_name
+    entity: geography_characteristic
+    column: geo_name
+  - name: geography_characteristic_relationship_type
+    entity: geography_characteristic
+    column: relationship_type
+  - name: address_id_zip
+    entity: address
+    column: id_zip
+  - name: address_id_state
+    entity: address
+    column: id_state
+  - name: address_city
+    entity: address
+    column: city
+  - name: address_state
+    entity: address
+    column: state
 
-metrics: []
+metrics:
+  - name: geography_characteristic_value
+    entity: geography_characteristic
+    expression: value
 
-# Nothing declared here: cross-domain foreign keys are declared on the
-# referencing (foreign-key) side only — see economic_indicators.yaml,
-# demographics.yaml, competitor_intelligence.yaml, each of which declares a
-# cross_domain_keys entry pointing at geography.geography.geo_id.
 cross_domain_keys: []
